@@ -14,11 +14,15 @@ The first demonstrably useful release is a responsive progressive web app, which
 
 - [x] (2026-04-17 00:00Z) Reviewed the repository state. The repo currently contains only /workspaces/swimswim/README.md, /workspaces/swimswim/AGENTS.MD, /workspaces/swimswim/plans.md, and the uploaded logo asset /workspaces/swimswim/swim+california+logo+transparent_dark.webp.
 - [x] (2026-04-17 00:10Z) Converted /workspaces/swimswim/plans.md from a generic template into a concrete product and implementation ExecPlan for the first usable Swim California release.
-- [ ] Scaffold the application with a Vite React TypeScript progressive web app, install dependencies, and commit the base folder structure described below.
-- [ ] Implement the Mission Control shell, global state, seeded demo mission, and role-based navigation.
-- [ ] Implement the operational workflows: checklist ownership, event timeline, quick logs, timed feedings, team shifts, and alerts.
-- [ ] Implement the Safety & Emergency center, communication hub, crew directory, logs view, and sponsor/media holding area.
-- [ ] Add offline storage, background synchronization, installable app support, and validation tests.
+- [x] (2026-05-06 19:42Z) Scaffolded the Vite React TypeScript progressive web app, installed dependencies, copied the logo asset, configured PWA generation, and added the application shell.
+- [x] (2026-05-06 19:42Z) Implemented the Mission Control shell, persisted Zustand mission state, seeded demo mission, role selector, active actor selector, and top-level navigation.
+- [x] (2026-05-06 19:42Z) Implemented operational workflows for checklist ownership/completion, event timeline filtering, quick logs, timed feedings, shift visibility, condition updates, and alert generation.
+- [x] (2026-05-06 19:42Z) Implemented Safety & Emergency, Communication Hub, Crew & Roles, Logs & Data, and Partners & Media screens.
+- [x] (2026-05-06 19:42Z) Added local-first persistence, simulated offline queue handling, generated installable PWA assets, and validation tests for mission-critical flows.
+- [x] (2026-05-06 19:53Z) Reviewed the protected first MVP and carried forward its daily operations workflows: session metadata, detailed readiness checks, medical/wellness readings, wildlife sightings, WOWSA photo cadence, and email-ready reports.
+- [x] (2026-05-06 20:02Z) Completed an MVP convergence pass: Mission Control now surfaces readiness by domain and operational cadence, Checklists can filter by boat/swim/medical/wellness/media domains, and Live Operations can complete cadence work including WOWSA photo checkpoints.
+- [x] (2026-05-06 20:05Z) Completed a mobile stress pass for Mission Control: first-screen emergency triggers were added, phone tap targets were enlarged, and small-screen chrome was reduced so the crisis surface appears sooner.
+- [x] (2026-05-06 20:11Z) Recentered the product around its primary purpose: checklist completion, expedition GPS tracking, and WOWSA GPS photo evidence. Navigation now prioritizes Checklists, Swim Tracker, and WOWSA Evidence; Swim Tracker logs GPS checkpoints; WOWSA records include image file evidence, GPS, accuracy, timestamp, distance, and evidence status.
 
 ## Surprises & Discoveries
 
@@ -27,6 +31,9 @@ The first demonstrably useful release is a responsive progressive web app, which
 
 - Observation: The uploaded logo already establishes a visual system strong enough to guide the first UI pass.
   Evidence: The mark combines deep navy, ocean blue, orange, and white, with a California silhouette and swimmer illustration that clearly communicates expedition swimming rather than generic fitness.
+
+- Observation: The first protected MVP is a single-page daily operations tool rather than a command center.
+  Evidence: It has Overview, Boat Safety, Swim Safety, Medical, Wellness, Wildlife, WOWSA Photos, and Export tabs, with localStorage persistence, GPS capture, Open-Meteo weather/water lookups, mailto reports, and a 30-minute WOWSA photo timer.
 
 ## Decision Log
 
@@ -48,7 +55,15 @@ The first demonstrably useful release is a responsive progressive web app, which
 
 ## Outcomes & Retrospective
 
-At this stage, the main outcome is a concrete execution plan that resolves the otherwise open-ended product brief into an implementable first release. The largest remaining gap is code: the repo still needs to be scaffolded and built. The most important lesson from the initial planning pass is that this product should be treated like an operations console first and an administrative tool second.
+The first usable release is now implemented as a local-first React PWA. The largest remaining product gaps are real multi-device sync, live GPS/weather integrations, and production authentication/permissions; the current release uses seeded data and browser-local state to validate the operational workflows.
+
+After reviewing the original MVP, the current release now preserves its strongest daily-operations mechanics while keeping Mission Control as the front door. Wildlife sightings, WOWSA certification photos, session metadata, medical/wellness readings, and report mailouts are now integrated into the shared mission state and event timeline.
+
+The convergence pass tightened the product direction further: the old MVP's daily readiness model is now visible from Mission Control, but operational decisions still flow through alerts, cadence, and timestamped actions.
+
+The mobile stress pass made Mission Control more credible in an urgent phone scenario by placing Medical, Distress, and Abort triggers directly beneath the next critical action and simplifying small-screen layout density.
+
+The latest correction clarified that the app is primarily a checklist and expedition tracking system with WOWSA GPS-certified image evidence. The app now reflects that emphasis in its navigation, data model, report output, and home-screen metrics.
 
 ## Context and Orientation
 

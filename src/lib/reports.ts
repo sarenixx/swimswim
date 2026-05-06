@@ -12,6 +12,8 @@ Swimmer: ${blank(session.swimmerName)}
 Location: ${blank(session.location)}
 Planned Distance: ${blank(session.plannedDistance)}
 Planned Start Time: ${blank(session.plannedStartTime)}
+Feeding Interval: ${mission.feedingIntervalMinutes} min
+WOWSA Photo Interval: ${mission.wowsaPhotoIntervalMinutes ?? 30} min
 GPS Start: ${blank(session.gpsStart)}
 GPS End: ${blank(session.gpsEnd)}
 Primary Vessel: ${blank(session.primaryVessel)}
@@ -167,6 +169,8 @@ export function buildWowsaEvidenceManifest(mission: Mission) {
         swimmer: mission.session.swimmerName,
         location: mission.session.location,
         plannedDistance: mission.session.plannedDistance,
+        feedingIntervalMinutes: mission.feedingIntervalMinutes,
+        wowsaPhotoIntervalMinutes: mission.wowsaPhotoIntervalMinutes ?? 30,
         gpsStart: mission.session.gpsStart,
         gpsEnd: mission.session.gpsEnd
       },

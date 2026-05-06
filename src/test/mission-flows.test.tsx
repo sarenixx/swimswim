@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { addMinutes } from 'date-fns';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { routes } from '../app/router';
@@ -69,5 +70,47 @@ describe('mission-critical flows', () => {
     expect(state.offlineQueue).toHaveLength(1);
     expect(state.mission.timeline[0].summary).toBe('Persistence check');
     expect(persisted).toContain('Persistence check');
+  });
+
+  it('starts a fresh expedition from mission setup data', () => {
+    const startAt = '2026-05-06T20:45:00.000Z';
+    const crew = useMissionStore.getState().mission.crew.map((member) => ({
+      id: member.id,
+      name: member.role === 'captain' ? 'Alex Captain' : member.name,
+      phone: member.phone
+    }));
+
+    useMissionStore.getState().startMissionFromSetup({
+      name: 'Santa Cruz Training Day',
+      swimmerName: 'Jamie Rivera',
+      location: 'Santa Cruz',
+      plannedDistance: '12 miles',
+      startAt,
+      gpsStart: '36.96000° N, 122.02000° W',
+      gpsEnd: '36.97000° N, 122.03000° W',
+      primaryVessel: 'Support One',
+      supportVessels: 'Kayak 1',
+      leadCrew: 'Alex Captain',
+      completedBy: 'Alex Captain',
+      feedingIntervalMinutes: 20,
+      wowsaPhotoIntervalMinutes: 15,
+      crew
+    });
+
+    const mission = useMissionStore.getState().mission;
+
+    expect(mission.status).toBe('active');
+    expect(mission.name).toBe('Santa Cruz Training Day');
+    expect(mission.session.swimmerName).toBe('Jamie Rivera');
+    expect(mission.feedingIntervalMinutes).toBe(20);
+    expect(mission.wowsaPhotoIntervalMinutes).toBe(15);
+    expect(mission.nextFeedingAt).toBe(addMinutes(new Date(startAt), 20).toISOString());
+    expect(mission.timeline[0].summary).toBe('Expedition started');
+    expect(mission.wowsaPhotos).toHaveLength(0);
+    expect(mission.expeditionCheckpoints[0]).toMatchObject({
+      label: 'Start checkpoint',
+      lat: 36.96,
+      lon: -122.02
+    });
   });
 });

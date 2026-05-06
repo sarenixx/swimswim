@@ -201,7 +201,7 @@ export function getProtocolForKind(mission: Mission, kind: EmergencyKind) {
 
 export function getWowsaNextDueAt(mission: Mission): string {
   const latestPhoto = [...(mission.wowsaPhotos ?? [])].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())[0];
-  return addMinutes(new Date(latestPhoto?.at ?? mission.startedAt), 30).toISOString();
+  return addMinutes(new Date(latestPhoto?.at ?? mission.startedAt), mission.wowsaPhotoIntervalMinutes ?? 30).toISOString();
 }
 
 export function getOperationalCadence(mission: Mission, now = new Date()): CadenceItem[] {

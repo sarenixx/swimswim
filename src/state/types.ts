@@ -57,6 +57,29 @@ export interface CrewMember {
   responsibilities: string[];
 }
 
+export interface MissionSetupCrewAssignment {
+  id: string;
+  name: string;
+  phone: string;
+}
+
+export interface MissionSetupInput {
+  name: string;
+  swimmerName: string;
+  location: string;
+  plannedDistance: string;
+  startAt: string;
+  gpsStart: string;
+  gpsEnd: string;
+  primaryVessel: string;
+  supportVessels: string;
+  leadCrew: string;
+  completedBy: string;
+  feedingIntervalMinutes: number;
+  wowsaPhotoIntervalMinutes: number;
+  crew: MissionSetupCrewAssignment[];
+}
+
 export interface ChecklistItem {
   id: string;
   category: ChecklistCategory;
@@ -231,6 +254,7 @@ export interface Mission {
   status: MissionStatus;
   startedAt: string;
   feedingIntervalMinutes: number;
+  wowsaPhotoIntervalMinutes: number;
   lastFeedingAt: string;
   nextFeedingAt: string;
   crew: CrewMember[];

@@ -10,6 +10,7 @@ import {
   HeartPulse,
   Radio,
   Route,
+  Settings2,
   ShieldCheck,
   Siren,
   Thermometer,
@@ -164,9 +165,15 @@ export function MissionControl() {
               {mission.session.swimmerName} · {mission.session.location} · {mission.session.plannedDistance}
             </p>
           </div>
-          <Link className="button" to="/checklists">
-            Open checks
-          </Link>
+          <div className="row-actions">
+            <Link className="button" to="/setup">
+              <Settings2 aria-hidden="true" />
+              Setup
+            </Link>
+            <Link className="button" to="/checklists">
+              Open checks
+            </Link>
+          </div>
         </div>
         <div className="readiness-grid">
           {readinessGroups.map((group) => (

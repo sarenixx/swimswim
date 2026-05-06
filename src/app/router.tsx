@@ -6,6 +6,7 @@ import {
   FileClock,
   MapPinned,
   MessageSquare,
+  Settings2,
   ShieldAlert
 } from 'lucide-react';
 import { createBrowserRouter, type RouteObject } from 'react-router-dom';
@@ -18,9 +19,11 @@ import { LogsData } from '../features/logs/LogsData';
 import { MissionControl } from '../features/mission-control/MissionControl';
 import { PartnersMedia } from '../features/partners/PartnersMedia';
 import { SafetyEmergency } from '../features/safety/SafetyEmergency';
+import { MissionSetup } from '../features/setup/MissionSetup';
 
 export const navItems = [
   { to: '/', label: 'Expedition Home', shortLabel: 'Home', title: 'Expedition Home', icon: Activity },
+  { to: '/setup', label: 'Mission Setup', shortLabel: 'Setup', title: 'Mission Setup', icon: Settings2 },
   { to: '/checklists', label: 'Checklists', shortLabel: 'Checks', title: 'Checklists', icon: ClipboardCheck },
   { to: '/live-operations', label: 'Swim Tracker', shortLabel: 'Track', title: 'Swim Tracker', icon: MapPinned },
   { to: '/wowsa', label: 'WOWSA Evidence', shortLabel: 'WOWSA', title: 'WOWSA Evidence', icon: Camera },
@@ -30,7 +33,7 @@ export const navItems = [
   { to: '/logs', label: 'Reports & Data', shortLabel: 'Reports', title: 'Reports & Data', icon: FileClock }
 ];
 
-export const primaryMobileNavItems = navItems.slice(0, 4);
+export const primaryMobileNavItems = [navItems[0], navItems[2], navItems[3], navItems[4]];
 
 export const routes: RouteObject[] = [
   {
@@ -38,6 +41,7 @@ export const routes: RouteObject[] = [
     element: <AppShell />,
     children: [
       { index: true, element: <MissionControl /> },
+      { path: 'setup', element: <MissionSetup /> },
       { path: 'checklists', element: <Checklists /> },
       { path: 'live-operations', element: <LiveOperations /> },
       { path: 'wowsa', element: <PartnersMedia /> },

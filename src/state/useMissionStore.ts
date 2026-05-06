@@ -1,4 +1,4 @@
-import { addMinutes } from 'date-fns';
+import { addHours, addMinutes } from 'date-fns';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { createOfflineQueueEntry, type OfflineQueueEntry } from '../lib/storage/offlineQueue';
@@ -13,6 +13,7 @@ import type {
   ExpeditionCheckpoint,
   MedicalVitals,
   Mission,
+  MissionSetupInput,
   QuickLogKind,
   SwimmerConditionLevel,
   TimelineEvent,
@@ -31,6 +32,7 @@ interface MissionStore {
   resetMission: () => void;
   setActiveActor: (actorId: string) => void;
   setSelectedRole: (role: CrewRole) => void;
+  startMissionFromSetup: (input: MissionSetupInput) => void;
   completeChecklistItem: (itemId: string, actorId?: string) => void;
   setChecklistOwner: (itemId: string, ownerId: string) => void;
   logEvent: (event: Omit<TimelineEvent, 'id' | 'at'> & { at?: string }) => void;
@@ -64,6 +66,54 @@ const storageName = 'swim-california-mission';
 const makeId = (prefix: string, at: string) => `${prefix}-${at}-${Math.random().toString(36).slice(2, 8)}`;
 
 const getDefaultOnlineStatus = () => (typeof navigator === 'undefined' ? true : navigator.onLine);
+
+const clampInterval = (value: number, fallback: number) => {
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+
+  return Math.max(5, Math.min(180, Math.round(value)));
+};
+
+const parseGpsCoordinates = (label: string) => {
+  const matches = [...label.matchAll(/(-?\d+(?:\.\d+)?)\s*°?\s*([NSEW])?/gi)];
+  if (matches.length < 2) {
+    return undefined;
+  }
+
+  const [latMatch, lonMatch] = matches;
+  const signed = (match: RegExpMatchArray) => {
+    const value = Number(match[1]);
+    const hemisphere = match[2]?.toUpperCase();
+    return hemisphere === 'S' || hemisphere === 'W' ? -Math.abs(value) : value;
+  };
+
+  const lat = signed(latMatch);
+  const lon = signed(lonMatch);
+
+  return Number.isFinite(lat) && Number.isFinite(lon) ? { lat, lon } : undefined;
+};
+
+const resetChecklistForStart = (items: ChecklistItem[], startAt: string): ChecklistItem[] => {
+  const start = new Date(startAt);
+  const dueOffsets: Record<string, number> = {
+    'in-feeding-readiness': 5,
+    'in-condition-scan': 15,
+    'in-kayak-check': 20,
+    'mental-captain-load': 60,
+    'mental-team-rotation': 120,
+    'mental-swimmer-supported': 180,
+    'mental-concerns-communicated': 240
+  };
+
+  return items.map((item) => ({
+    ...item,
+    completedAt: undefined,
+    completedBy: undefined,
+    status: 'pending',
+    dueAt: dueOffsets[item.id] !== undefined ? addMinutes(start, dueOffsets[item.id]).toISOString() : undefined
+  }));
+};
 
 const lateByMinutes = (dueAt: string | undefined, completedAt: string) => {
   if (!dueAt) {
@@ -186,6 +236,135 @@ export const useMissionStore = create<MissionStore>()(
       setActiveActor: (actorId) => set({ activeActorId: actorId }),
 
       setSelectedRole: (role) => set({ selectedRole: role }),
+
+      startMissionFromSetup: (input) => {
+        const requestedStart = new Date(input.startAt);
+        const start = Number.isNaN(requestedStart.getTime()) ? new Date() : requestedStart;
+        const startedAt = start.toISOString();
+        const feedingIntervalMinutes = clampInterval(input.feedingIntervalMinutes, 30);
+        const wowsaPhotoIntervalMinutes = clampInterval(input.wowsaPhotoIntervalMinutes, 30);
+        const startGps = input.gpsStart.trim();
+        const parsedGps = parseGpsCoordinates(startGps);
+
+        set((state) => {
+          const crew = state.mission.crew.map((member) => {
+            const assignment = input.crew.find((candidate) => candidate.id === member.id);
+            const shiftHours = member.role === 'medical' || member.role === 'boat' ? 6 : 4;
+
+            return {
+              ...member,
+              name: assignment?.name.trim() || member.name,
+              phone: assignment?.phone.trim() || member.phone,
+              shiftStart: startedAt,
+              shiftEnd: addHours(start, shiftHours).toISOString()
+            };
+          });
+          const captain = crew.find((member) => member.role === 'captain') ?? crew[0];
+          if (!captain) {
+            return state;
+          }
+
+          const medic = crew.find((member) => member.role === 'medical');
+          const position = parsedGps
+            ? { lat: parsedGps.lat, lon: parsedGps.lon, label: startGps, updatedAt: startedAt }
+            : {
+                ...state.mission.position,
+                label: startGps || 'Start GPS pending',
+                updatedAt: startedAt
+              };
+          const startCheckpoint = parsedGps
+            ? [
+                {
+                  id: makeId('checkpoint-start', startedAt),
+                  at: startedAt,
+                  lat: parsedGps.lat,
+                  lon: parsedGps.lon,
+                  gps: startGps,
+                  label: 'Start checkpoint',
+                  note: 'Expedition start GPS recorded from mission setup.',
+                  actorId: captain.id
+                }
+              ]
+            : [];
+          const startEvent: TimelineEvent = {
+            id: makeId('event-start', startedAt),
+            type: 'note',
+            at: startedAt,
+            actorId: captain.id,
+            summary: 'Expedition started',
+            detail: `Feeding every ${feedingIntervalMinutes} min. WOWSA photo every ${wowsaPhotoIntervalMinutes} min.`,
+            severity: 'info'
+          };
+          const startMessage: CommunicationMessage = {
+            id: makeId('message-start', startedAt),
+            channel: 'broadcast',
+            at: startedAt,
+            actorId: captain.id,
+            body: 'Expedition started. All teams hold assigned roles and confirm first cadence windows.',
+            requiresConfirmation: true
+          };
+          const firstCondition = {
+            id: makeId('condition-start', startedAt),
+            at: startedAt,
+            actorId: medic?.id ?? captain.id,
+            level: 'steady' as const,
+            note: 'Initial swim condition awaiting first structured scan.'
+          };
+
+          return {
+            ...state,
+            activeActorId: captain.id,
+            selectedRole: captain.role,
+            mission: {
+              ...state.mission,
+              id: makeId('mission', startedAt),
+              name: input.name.trim() || state.mission.name,
+              status: 'active',
+              startedAt,
+              feedingIntervalMinutes,
+              wowsaPhotoIntervalMinutes,
+              lastFeedingAt: startedAt,
+              nextFeedingAt: addMinutes(start, feedingIntervalMinutes).toISOString(),
+              crew,
+              checklistItems: resetChecklistForStart(state.mission.checklistItems, startedAt),
+              timeline: [startEvent],
+              alerts: [],
+              conditions: {
+                ...state.mission.conditions,
+                observedAt: startedAt
+              },
+              swimmerConditions: [firstCondition],
+              contacts: state.mission.contacts.map((contact) =>
+                contact.id === 'contact-leadership'
+                  ? { ...contact, name: captain.name, phone: captain.phone }
+                  : contact.id === 'contact-doctor' && medic
+                    ? { ...contact, name: medic.name, phone: medic.phone }
+                    : contact
+              ),
+              communications: [startMessage],
+              session: {
+                ...state.mission.session,
+                swimmerName: input.swimmerName.trim(),
+                location: input.location.trim(),
+                plannedDistance: input.plannedDistance.trim(),
+                plannedStartTime: start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                gpsStart: startGps,
+                gpsEnd: input.gpsEnd.trim(),
+                primaryVessel: input.primaryVessel.trim(),
+                supportVessels: input.supportVessels.trim(),
+                leadCrew: input.leadCrew.trim(),
+                completedBy: input.completedBy.trim() || captain.name
+              },
+              wildlifeSightings: [],
+              wowsaPhotos: [],
+              expeditionCheckpoints: startCheckpoint,
+              position,
+              activeProtocolKind: undefined
+            },
+            offlineQueue: queueIfOffline(state.online, state.offlineQueue, 'start-mission-from-setup', input, startedAt)
+          };
+        });
+      },
 
       completeChecklistItem: (itemId, actorId) => {
         const completedAt = new Date().toISOString();

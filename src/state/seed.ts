@@ -32,6 +32,7 @@ export function buildSeedMission(now = new Date()): Mission {
     status: 'active',
     startedAt: iso(startedAt),
     feedingIntervalMinutes: 30,
+    wowsaPhotoIntervalMinutes: 30,
     lastFeedingAt: iso(subMinutes(now, 26)),
     nextFeedingAt: iso(addMinutes(now, 4)),
     position: {

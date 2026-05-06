@@ -1,5 +1,5 @@
 import { format } from 'date-fns';
-import type { Mission } from '../state/types';
+import type { Mission, WowsaPhotoEntry } from '../state/types';
 
 const blank = (value?: string | number) => (value === undefined || value === '' ? '-' : String(value));
 
@@ -144,6 +144,70 @@ Total Photos Logged: ${(mission.wowsaPhotos ?? []).length}
 ${wowsaBlock(mission)}
 
 Note: attach every corresponding photo from the camera roll before sending.`;
+}
+
+export function getWowsaEvidenceChecks(photo: WowsaPhotoEntry) {
+  return [
+    { id: 'image', label: 'Photo attached', done: Boolean(photo.hasPhoto || photo.imageDataUrl || photo.imageName) },
+    { id: 'gps', label: 'GPS present', done: Boolean(photo.gps) },
+    { id: 'timestamp', label: 'Timestamp present', done: Boolean(photo.at) },
+    { id: 'accuracy', label: 'Accuracy present', done: photo.gpsAccuracyM !== undefined },
+    { id: 'distance', label: 'Distance noted', done: Boolean(photo.distanceSwum) }
+  ];
+}
+
+export function buildWowsaEvidenceManifest(mission: Mission) {
+  const photos = [...(mission.wowsaPhotos ?? [])].sort((a, b) => a.number - b.number);
+  return JSON.stringify(
+    {
+      generatedAt: new Date().toISOString(),
+      mission: {
+        id: mission.id,
+        name: mission.name,
+        swimmer: mission.session.swimmerName,
+        location: mission.session.location,
+        plannedDistance: mission.session.plannedDistance,
+        gpsStart: mission.session.gpsStart,
+        gpsEnd: mission.session.gpsEnd
+      },
+      summary: {
+        totalPhotos: photos.length,
+        readyPhotos: photos.filter((photo) => photo.evidenceStatus === 'ready').length,
+        routeCheckpoints: (mission.expeditionCheckpoints ?? []).length
+      },
+      photos: photos.map((photo) => ({
+        number: photo.number,
+        timestamp: photo.at,
+        gps: photo.gps,
+        gpsAccuracyM: photo.gpsAccuracyM,
+        distanceSwum: photo.distanceSwum,
+        imageName: photo.imageName,
+        evidenceStatus: photo.evidenceStatus,
+        checks: getWowsaEvidenceChecks(photo),
+        notes: photo.notes
+      })),
+      route: mission.expeditionCheckpoints ?? []
+    },
+    null,
+    2
+  );
+}
+
+export function buildRouteCsv(mission: Mission) {
+  const headers = ['at', 'label', 'gps', 'lat', 'lon', 'accuracyM', 'note', 'actorId'];
+  const escape = (value: string | number | undefined) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+  const rows = (mission.expeditionCheckpoints ?? []).map((checkpoint) => ({
+    at: checkpoint.at,
+    label: checkpoint.label,
+    gps: checkpoint.gps,
+    lat: checkpoint.lat,
+    lon: checkpoint.lon,
+    accuracyM: checkpoint.accuracyM,
+    note: checkpoint.note,
+    actorId: checkpoint.actorId
+  }));
+
+  return [headers.join(','), ...rows.map((row) => headers.map((header) => escape(row[header as keyof typeof row])).join(','))].join('\n');
 }
 
 export function mailtoHref(to: string, subject: string, body: string) {

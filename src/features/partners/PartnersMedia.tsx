@@ -2,7 +2,13 @@ import { Camera, CheckCircle2, Handshake, Image as ImageIcon, Mail, MapPin, Plus
 import { useEffect, useState } from 'react';
 import logoUrl from '../../assets/logo.webp';
 import { getDevicePosition, readFileAsDataUrl } from '../../lib/gps';
-import { buildWowsaReport, mailtoHref } from '../../lib/reports';
+import {
+  buildRouteCsv,
+  buildWowsaEvidenceManifest,
+  buildWowsaReport,
+  getWowsaEvidenceChecks,
+  mailtoHref
+} from '../../lib/reports';
 import { formatClock, getCrewLabel } from '../../state/selectors';
 import { useMissionStore } from '../../state/useMissionStore';
 
@@ -87,6 +93,8 @@ export function PartnersMedia() {
 
   const reportDate = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   const wowsaPhotos = mission.wowsaPhotos ?? [];
+  const evidenceManifestHref = `data:application/json;charset=utf-8,${encodeURIComponent(buildWowsaEvidenceManifest(mission))}`;
+  const routeCsvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(buildRouteCsv(mission))}`;
 
   return (
     <div className="page-grid">
@@ -191,6 +199,14 @@ export function PartnersMedia() {
             <Plus aria-hidden="true" />
             Add photo log
           </button>
+          <a className="button" href={evidenceManifestHref} download="wowsa-evidence-manifest.json">
+            <CheckCircle2 aria-hidden="true" />
+            Evidence JSON
+          </a>
+          <a className="button" href={routeCsvHref} download="swim-route-checkpoints.csv">
+            <MapPin aria-hidden="true" />
+            Route CSV
+          </a>
           <a
             className="button"
             href={mailtoHref(
@@ -226,10 +242,42 @@ export function PartnersMedia() {
                   </div>
                 </div>
                 {photo.imageDataUrl ? <img className="evidence-thumb" src={photo.imageDataUrl} alt={`WOWSA evidence ${photo.number}`} /> : null}
+                <ul className="evidence-checks" aria-label={`Evidence checks for photo ${photo.number}`}>
+                  {getWowsaEvidenceChecks(photo).map((check) => (
+                    <li className={check.done ? 'evidence-check done' : 'evidence-check missing'} key={check.id}>
+                      <CheckCircle2 aria-hidden="true" />
+                      {check.label}
+                    </li>
+                  ))}
+                </ul>
               </li>
             ))}
           </ul>
         ) : null}
+      </section>
+
+      <section className="panel span-12">
+        <div className="panel-header">
+          <div>
+            <h3 className="panel-title">Route Evidence</h3>
+            <p className="panel-subtitle">{(mission.expeditionCheckpoints ?? []).length} ordered GPS checkpoints.</p>
+          </div>
+          <MapPin aria-hidden="true" />
+        </div>
+        <ul className="timeline-list">
+          {(mission.expeditionCheckpoints ?? []).map((checkpoint) => (
+            <li className="timeline-item" key={checkpoint.id}>
+              <span className="timeline-time">{formatClock(checkpoint.at)}</span>
+              <div>
+                <div className="timeline-summary">{checkpoint.label}</div>
+                <div className="timeline-detail">
+                  {checkpoint.gps} {checkpoint.accuracyM ? `· ±${Math.round(checkpoint.accuracyM)}m` : ''} · {checkpoint.note}
+                </div>
+              </div>
+              <span className="severity-pill info">gps</span>
+            </li>
+          ))}
+        </ul>
       </section>
 
       <section className="panel span-8">

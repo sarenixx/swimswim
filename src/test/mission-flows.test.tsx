@@ -17,11 +17,11 @@ describe('mission-critical flows', () => {
     useMissionStore.getState().setOnlineStatus(true);
   });
 
-  it('surfaces the next feeding as the critical action', async () => {
+  it('surfaces overdue WOWSA evidence as the critical action', async () => {
     renderRoute('/');
 
     expect(await screen.findByText('Next Critical Action')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /Feeding in/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /WOWSA photo overdue/i })).toBeInTheDocument();
     expect(screen.getByText('Active Alerts')).toBeInTheDocument();
   });
 

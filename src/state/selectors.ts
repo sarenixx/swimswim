@@ -253,6 +253,7 @@ export function getOperationalCadence(mission: Mission, now = new Date()): Caden
 export function getNextCriticalAction(mission: Mission, now = new Date()): CriticalAction {
   const activeAlerts = getActiveAlerts(mission);
   const criticalAlert = activeAlerts.find((alert) => alert.severity === 'critical');
+  const cadenceItems = getOperationalCadence(mission, now);
   if (criticalAlert) {
     return {
       title: criticalAlert.title,
@@ -271,6 +272,29 @@ export function getNextCriticalAction(mission: Mission, now = new Date()): Criti
     };
   }
 
+  const criticalCadence = cadenceItems.find((item) => item.severity === 'critical');
+  if (criticalCadence) {
+    return {
+      title:
+        criticalCadence.action === 'feeding'
+          ? 'Feeding overdue'
+          : criticalCadence.action === 'wowsa'
+            ? 'WOWSA photo overdue'
+            : `${criticalCadence.label} overdue`,
+      detail: criticalCadence.detail,
+      severity: 'critical',
+      dueAt: criticalCadence.dueAt,
+      actionLabel: criticalCadence.action === 'wowsa' ? 'Log photo' : criticalCadence.action === 'feeding' ? 'Log feeding' : 'Complete',
+      intent:
+        criticalCadence.action === 'wowsa'
+          ? 'wowsa'
+          : criticalCadence.action === 'feeding'
+            ? 'feeding'
+            : 'checklist',
+      checklistItemId: criticalCadence.checklistItemId
+    };
+  }
+
   const warningAlert = activeAlerts.find((alert) => alert.severity === 'warning');
   if (warningAlert) {
     return {
@@ -284,28 +308,26 @@ export function getNextCriticalAction(mission: Mission, now = new Date()): Criti
     };
   }
 
-  const minutesToFeeding = getMinutesUntil(mission.nextFeedingAt, now);
-  if (minutesToFeeding <= 5) {
+  const warningCadence = cadenceItems.find((item) => item.severity === 'warning');
+  if (warningCadence) {
     return {
-      title: minutesToFeeding <= 0 ? 'Feeding overdue' : `Feeding in ${minutesToFeeding} min`,
-      detail: 'Kayak escort should confirm bottle, handoff side, and swimmer response.',
-      severity: minutesToFeeding <= 0 ? 'critical' : 'warning',
-      dueAt: mission.nextFeedingAt,
-      actionLabel: 'Log feeding',
-      intent: 'feeding'
-    };
-  }
-
-  const overdueCadence = getOperationalCadence(mission, now).find((item) => item.severity === 'critical');
-  if (overdueCadence) {
-    return {
-      title: `${overdueCadence.label} overdue`,
-      detail: overdueCadence.detail,
-      severity: 'critical',
-      dueAt: overdueCadence.dueAt,
-      actionLabel: overdueCadence.action === 'wowsa' ? 'Log photo' : 'Complete',
-      intent: overdueCadence.action === 'wowsa' ? 'wowsa' : 'checklist',
-      checklistItemId: overdueCadence.checklistItemId
+      title:
+        warningCadence.action === 'feeding'
+          ? `Feeding in ${warningCadence.minutesUntil} min`
+          : warningCadence.action === 'wowsa'
+            ? `WOWSA photo in ${warningCadence.minutesUntil} min`
+            : warningCadence.label,
+      detail: warningCadence.detail,
+      severity: 'warning',
+      dueAt: warningCadence.dueAt,
+      actionLabel: warningCadence.action === 'wowsa' ? 'Log photo' : warningCadence.action === 'feeding' ? 'Log feeding' : 'Complete',
+      intent:
+        warningCadence.action === 'wowsa'
+          ? 'wowsa'
+          : warningCadence.action === 'feeding'
+            ? 'feeding'
+            : 'checklist',
+      checklistItemId: warningCadence.checklistItemId
     };
   }
 

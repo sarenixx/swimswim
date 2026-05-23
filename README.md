@@ -22,3 +22,8 @@ Local-first PWA for coordinating high-risk endurance swim expeditions, now deliv
 - Share preview logs are written to `.codespaces/logs/preview-serve.log` and `.codespaces/logs/preview-tunnel.log`.
 - `npm run dev` serves the app at port `5173` with hostnames allowed for Codespaces and common tunnel domains.
 - `npm run preview` serves the built app at port `4173`.
+
+## Automation
+
+- `.github/workflows/ci-pages.yml` runs tests and build on pull requests and on `main`.
+- Pushes to `main` also deploy the current `dist/` output to `gh-pages` with an SPA fallback `404.html`.

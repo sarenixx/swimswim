@@ -2,7 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { addMinutes } from 'date-fns';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { routes } from '../app/router';
 import { createLiveStateFromTemplate, useMissionStore, useTemplateMissionStore } from '../state/useMissionStore';
 
@@ -14,6 +14,28 @@ function renderRoute(path = '/') {
 describe('mission-critical flows', () => {
   beforeEach(() => {
     localStorage.clear();
+    Object.defineProperty(navigator, 'geolocation', {
+      configurable: true,
+      value: {
+        getCurrentPosition: vi.fn((success) =>
+          success({
+            coords: {
+              latitude: 33.71,
+              longitude: -118.28,
+              accuracy: 7
+            }
+          })
+        )
+      }
+    });
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: vi.fn(() => 'blob:wowsa-test')
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      value: vi.fn()
+    });
     useMissionStore.getState().resetMission();
     useTemplateMissionStore.getState().resetMission();
     useMissionStore.getState().setOnlineStatus(true);
@@ -60,12 +82,12 @@ describe('mission-critical flows', () => {
     expect(screen.getByText(/Wind above 18 kt/i)).toBeInTheDocument();
   });
 
-  it('saves WOWSA GPS photo evidence metadata locally', async () => {
+  it('auto-captures GPS when saving WOWSA photo evidence', async () => {
     const user = userEvent.setup();
     renderRoute('/wowsa');
 
     expect(await screen.findByText('WOWSA GPS Photo Evidence')).toBeInTheDocument();
-    await user.type(screen.getByLabelText(/Photo GPS/i), '33.71000 N, 118.28000 W');
+    await user.upload(screen.getByLabelText(/Add image/i), new File(['photo'], 'wowsa.jpg', { type: 'image/jpeg' }));
     await user.type(screen.getByLabelText(/Cumulative distance/i), '4.2 miles');
     await user.click(screen.getByRole('button', { name: 'Save evidence' }));
 
@@ -74,8 +96,10 @@ describe('mission-critical flows', () => {
       gps: '33.71000° N, 118.28000° W',
       lat: 33.71,
       lon: -118.28,
+      gpsAccuracyM: 7,
       distanceSwum: '4.2 miles',
-      evidenceStatus: 'needs-image'
+      imageName: 'wowsa.jpg',
+      evidenceStatus: 'ready'
     });
     expect(useMissionStore.getState().mission.timeline[0].summary).toBe('WOWSA photo #1 logged');
   });

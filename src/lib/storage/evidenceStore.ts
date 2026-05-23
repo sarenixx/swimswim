@@ -10,6 +10,7 @@ interface StoredEvidenceImage {
 const dbName = 'swim-california-evidence';
 const dbVersion = 1;
 const imageStoreName = 'wowsa-images';
+const memoryEvidenceImages = new Map<string, StoredEvidenceImage>();
 
 function openEvidenceDb(): Promise<IDBDatabase> {
   if (typeof indexedDB === 'undefined') {
@@ -65,13 +66,27 @@ export function saveEvidenceImage(key: string, file: File) {
     updatedAt: new Date().toISOString()
   };
 
+  if (typeof indexedDB === 'undefined') {
+    memoryEvidenceImages.set(key, record);
+    return Promise.resolve(key);
+  }
+
   return runImageStore('readwrite', (store) => store.put(record));
 }
 
 export function getEvidenceImage(key: string) {
+  if (typeof indexedDB === 'undefined') {
+    return Promise.resolve(memoryEvidenceImages.get(key));
+  }
+
   return runImageStore<StoredEvidenceImage | undefined>('readonly', (store) => store.get(key));
 }
 
 export function deleteEvidenceImage(key: string) {
+  if (typeof indexedDB === 'undefined') {
+    memoryEvidenceImages.delete(key);
+    return Promise.resolve(undefined);
+  }
+
   return runImageStore('readwrite', (store) => store.delete(key));
 }

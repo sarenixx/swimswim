@@ -70,6 +70,7 @@ export function PartnersMedia() {
   const [photoDraft, setPhotoDraft] = useState<PhotoDraft>(() => emptyPhotoDraft());
   const [gpsStatus, setGpsStatus] = useState('');
   const [storageStatus, setStorageStatus] = useState('');
+  const [isSavingEvidence, setIsSavingEvidence] = useState(false);
   const [storedImageUrls, setStoredImageUrls] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -148,35 +149,81 @@ export function PartnersMedia() {
     setPhotoDraft(emptyPhotoDraft());
   };
 
+  const getDraftCoordinates = (draft: PhotoDraft) => {
+    const parsedGps = parseGpsLabel(draft.gps);
+    const lat = draft.lat ?? parsedGps?.lat;
+    const lon = draft.lon ?? parsedGps?.lon;
+
+    return lat !== undefined && lon !== undefined
+      ? {
+          lat,
+          lon,
+          gps: formatGpsLabel(lat, lon),
+          gpsAccuracyM: draft.gpsAccuracyM
+        }
+      : undefined;
+  };
+
+  const applyDevicePosition = async (statusLabel: string) => {
+    setGpsStatus(statusLabel);
+    const position = await getDevicePosition();
+    setPhotoDraft((draft) => ({
+      ...draft,
+      gps: position.label,
+      lat: position.lat,
+      lon: position.lon,
+      gpsAccuracyM: position.accuracyM
+    }));
+    setGpsStatus(`GPS captured ${position.accuracyM ? `±${Math.round(position.accuracyM)}m` : ''}`);
+    return position;
+  };
+
   const logPhoto = async () => {
     const at = new Date().toISOString();
     let imageStorageKey: string | undefined;
     let imageSizeBytes: number | undefined;
 
-    setStorageStatus(photoDraft.imageFile ? 'Saving image...' : 'Saving evidence record...');
+    if (!photoDraft.imageFile) {
+      setStorageStatus('Add or take a photo before saving WOWSA evidence.');
+      return;
+    }
+
+    setIsSavingEvidence(true);
+    setStorageStatus('Checking GPS before save...');
 
     try {
-      if (photoDraft.imageFile) {
-        imageStorageKey = makeEvidenceImageKey(getSyncMissionId(mission), at, photoDraft.imageFile.name);
-        if (isRemoteSyncAvailable()) {
-          await uploadEvidenceImage(imageStorageKey, photoDraft.imageFile);
-        } else {
-          await saveEvidenceImage(imageStorageKey, photoDraft.imageFile);
+      let coordinates = getDraftCoordinates(photoDraft);
+
+      if (!coordinates) {
+        try {
+          const position = await applyDevicePosition('Capturing GPS before save...');
+          coordinates = {
+            lat: position.lat,
+            lon: position.lon,
+            gps: position.label,
+            gpsAccuracyM: position.accuracyM
+          };
+        } catch (error) {
+          setGpsStatus(error instanceof Error ? error.message : 'GPS capture failed.');
+          setStorageStatus('GPS coordinates are required before saving. Allow location access or enter coordinates manually.');
+          return;
         }
-        imageSizeBytes = photoDraft.imageFile.size;
       }
 
-      const parsedGps = parseGpsLabel(photoDraft.gps);
-      const lat = photoDraft.lat ?? parsedGps?.lat;
-      const lon = photoDraft.lon ?? parsedGps?.lon;
-      const gps = lat !== undefined && lon !== undefined ? formatGpsLabel(lat, lon) : photoDraft.gps || mission.position.label;
+      imageStorageKey = makeEvidenceImageKey(getSyncMissionId(mission), at, photoDraft.imageFile.name);
+      if (isRemoteSyncAvailable()) {
+        await uploadEvidenceImage(imageStorageKey, photoDraft.imageFile);
+      } else {
+        await saveEvidenceImage(imageStorageKey, photoDraft.imageFile);
+      }
+      imageSizeBytes = photoDraft.imageFile.size;
 
       addWowsaPhoto({
         at,
-        gps,
-        lat,
-        lon,
-        gpsAccuracyM: photoDraft.gpsAccuracyM,
+        gps: coordinates.gps,
+        lat: coordinates.lat,
+        lon: coordinates.lon,
+        gpsAccuracyM: coordinates.gpsAccuracyM,
         distanceSwum: photoDraft.distanceSwum,
         notes: photoDraft.notes,
         hasPhoto: photoDraft.hasPhoto,
@@ -197,21 +244,14 @@ export function PartnersMedia() {
       resetDraft();
     } catch (error) {
       setStorageStatus(error instanceof Error ? error.message : 'Could not save evidence locally.');
+    } finally {
+      setIsSavingEvidence(false);
     }
   };
 
   const capturePhotoGps = async () => {
-    setGpsStatus('Capturing GPS...');
     try {
-      const position = await getDevicePosition();
-      setPhotoDraft((draft) => ({
-        ...draft,
-        gps: position.label,
-        lat: position.lat,
-        lon: position.lon,
-        gpsAccuracyM: position.accuracyM
-      }));
-      setGpsStatus(`GPS captured ${position.accuracyM ? `±${Math.round(position.accuracyM)}m` : ''}`);
+      await applyDevicePosition('Capturing GPS...');
     } catch (error) {
       setGpsStatus(error instanceof Error ? error.message : 'GPS capture failed.');
     }
@@ -231,6 +271,12 @@ export function PartnersMedia() {
       imageName: file.name
     }));
     setStorageStatus('Image ready for local save.');
+
+    if (!getDraftCoordinates(photoDraft)) {
+      applyDevicePosition('Capturing GPS for selected photo...').catch((error) => {
+        setGpsStatus(error instanceof Error ? error.message : 'GPS capture failed. Enter coordinates manually as backup.');
+      });
+    }
   };
 
   const handleRemovePhoto = async (photoId: string, imageStorageKey?: string) => {
@@ -294,9 +340,9 @@ export function PartnersMedia() {
           <h3 className="critical-title">{timerLabel}</h3>
           <p className="critical-detail">Due at {formatClock(nextWowsaDueAt)} based on the last saved WOWSA photo.</p>
           <div className="critical-meta">
-            <button className="button primary" type="button" onClick={logPhoto}>
-              <Camera aria-hidden="true" />
-              Save evidence record
+            <button className="button primary" type="button" onClick={capturePhotoGps}>
+              <MapPin aria-hidden="true" />
+              Capture GPS coordinates
             </button>
           </div>
         </div>
@@ -388,9 +434,9 @@ export function PartnersMedia() {
               onChange={(event) => handlePhotoFile(event.target.files?.[0])}
             />
           </label>
-          <button className="button" type="button" onClick={logPhoto}>
+          <button className="button" type="button" onClick={logPhoto} disabled={isSavingEvidence}>
             <Plus aria-hidden="true" />
-            Save evidence
+            {isSavingEvidence ? 'Saving...' : 'Save evidence'}
           </button>
           {gpsStatus ? <span className="row-meta">{gpsStatus}</span> : null}
           {storageStatus ? <span className="row-meta">{storageStatus}</span> : null}

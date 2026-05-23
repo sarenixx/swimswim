@@ -20,11 +20,12 @@ describe('mission-critical flows', () => {
     useTemplateMissionStore.getState().setOnlineStatus(true);
   });
 
-  it('surfaces the next readiness or feeding action as the critical action', async () => {
+  it('surfaces the WOWSA GPS photo capture as the critical action', async () => {
     renderRoute('/');
 
     expect(await screen.findByText('Right Now')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /Prepare nutrition bottle/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /WOWSA GPS photo capture overdue/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Capture GPS photo/i })).toBeInTheDocument();
     expect(screen.getByText('Active Alerts')).toBeInTheDocument();
   });
 
@@ -94,20 +95,19 @@ describe('mission-critical flows', () => {
     expect(state.mission.alerts[0].kind).toBe('fatigue');
   });
 
-  it('raises a critical alert and pins protocol on swimmer distress', async () => {
+  it('opens emergency protocols without raising an alert signal', async () => {
     const user = userEvent.setup();
     renderRoute('/safety');
 
-    await user.click(screen.getAllByRole('button', { name: 'Swimmer Distress' })[0]);
+    expect(await screen.findByText('Emergency Access')).toBeInTheDocument();
+    const statusBeforeProtocolOpen = useMissionStore.getState().mission.status;
+    await user.click(screen.getAllByRole('button', { name: 'Medical' })[0]);
 
     const state = useMissionStore.getState();
-    expect(state.mission.activeProtocolKind).toBe('distress');
-    expect(state.mission.alerts[0]).toMatchObject({
-      kind: 'distress',
-      severity: 'critical',
-      status: 'active'
-    });
-    expect(screen.getByText('Swimmer distress active')).toBeInTheDocument();
+    expect(state.mission.activeProtocolKind).toBe('medical');
+    expect(state.mission.alerts).toHaveLength(0);
+    expect(state.mission.status).toBe(statusBeforeProtocolOpen);
+    expect(screen.getByText('Medical Issue Protocol')).toBeInTheDocument();
   });
 
   it('queues writes while offline and keeps the mission log persisted', () => {

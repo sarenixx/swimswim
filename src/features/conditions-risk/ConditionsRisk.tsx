@@ -1,15 +1,20 @@
 import { AlertTriangle, Ambulance, Ban, PhoneCall, ShieldAlert, Thermometer, Waves, Wind } from 'lucide-react';
-import { emergencyLabels } from '../../state/seed';
+import { Link } from 'react-router-dom';
+import { getMissionPath } from '../../app/missionNavigation';
 import { formatClock, getActiveAlerts } from '../../state/selectors';
 import type { EmergencyKind } from '../../state/types';
 import { useMissionStore } from '../../state/useMissionStore';
 
 const emergencyKinds: EmergencyKind[] = ['medical', 'distress', 'abort'];
+const protocolLabels: Record<EmergencyKind, string> = {
+  medical: 'Medical',
+  distress: 'Distress',
+  abort: 'Abort'
+};
 
 export function ConditionsRisk() {
   const mission = useMissionStore((state) => state.mission);
-  const activeActorId = useMissionStore((state) => state.activeActorId);
-  const triggerEmergency = useMissionStore((state) => state.triggerEmergency);
+  const openEmergencyProtocol = useMissionStore((state) => state.openEmergencyProtocol);
   const activeAlerts = getActiveAlerts(mission);
   const riskPlan = mission.riskPlan ?? {
     tideWindow: 'Tide window pending',
@@ -157,16 +162,16 @@ export function ConditionsRisk() {
       <section className="panel span-5">
         <div className="panel-header">
           <div>
-            <h3 className="panel-title">Escalate</h3>
-            <p className="panel-subtitle">Emergency contacts stay one tap away.</p>
+            <h3 className="panel-title">Emergency Access</h3>
+            <p className="panel-subtitle">Trigger protocol from here</p>
           </div>
           <PhoneCall aria-hidden="true" />
         </div>
-        <div className="quick-grid">
+        <div className="protocol-button-grid">
           {emergencyKinds.map((kind) => (
-            <button className={`emergency-button compact ${kind === 'abort' ? 'abort' : kind}`} key={kind} type="button" onClick={() => triggerEmergency(kind, activeActorId)}>
-              {emergencyLabels[kind]}
-            </button>
+            <Link className="protocol-button" key={kind} to={getMissionPath(mission.mode, 'safety')} onClick={() => openEmergencyProtocol(kind)}>
+              {protocolLabels[kind]}
+            </Link>
           ))}
         </div>
         <div className="contact-grid risk-contact-grid">

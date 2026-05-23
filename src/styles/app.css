@@ -803,6 +803,66 @@ a {
   border-color: var(--color-alert);
 }
 
+.protocol-access {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: #f9fbfd;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+}
+
+.protocol-access-copy {
+  display: grid;
+  gap: 2px;
+}
+
+.protocol-access-copy strong {
+  color: var(--color-night);
+  font-size: 0.95rem;
+}
+
+.protocol-access-copy span {
+  color: var(--color-muted);
+  font-size: 0.86rem;
+}
+
+.protocol-button-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.protocol-button-grid-large {
+  grid-template-columns: repeat(3, minmax(140px, 1fr));
+}
+
+.protocol-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  color: var(--color-night);
+  font-weight: 900;
+  text-align: center;
+  text-decoration: none;
+  background: var(--color-white);
+  border: 1px solid #bfd3e4;
+  border-radius: var(--radius-control);
+}
+
+.protocol-button:hover,
+.protocol-button:focus-visible {
+  border-color: var(--color-ocean);
+  box-shadow: 0 0 0 3px rgba(0, 119, 182, 0.12);
+}
+
+.protocol-button.large {
+  min-height: 58px;
+  font-size: 1rem;
+}
+
 .timeline-list,
 .row-list,
 .alert-list,
@@ -1300,6 +1360,11 @@ input[type="range"] {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  .protocol-button-grid,
+  .protocol-button-grid-large {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .emergency-button.compact {
     min-height: 56px;
   }
@@ -1379,6 +1444,11 @@ input[type="range"] {
   }
 
   .mission-emergency-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .protocol-button-grid,
+  .protocol-button-grid-large {
     grid-template-columns: 1fr;
   }
 

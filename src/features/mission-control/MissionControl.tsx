@@ -2,6 +2,7 @@ import {
   AlertTriangle,
   Ban,
   CalendarClock,
+  Camera,
   ChevronDown,
   Clock3,
   ContactRound,
@@ -97,11 +98,10 @@ const quickActions: Array<{
 const emergencyActions: Array<{
   kind: EmergencyKind;
   label: string;
-  tone: 'medical' | 'distress' | 'abort';
 }> = [
-  { kind: 'medical', label: 'Medical', tone: 'medical' },
-  { kind: 'distress', label: 'Distress', tone: 'distress' },
-  { kind: 'abort', label: 'Abort', tone: 'abort' }
+  { kind: 'medical', label: 'Medical' },
+  { kind: 'distress', label: 'Distress' },
+  { kind: 'abort', label: 'Abort' }
 ];
 
 const missionStatuses: MissionStatus[] = ['preparing', 'active', 'paused', 'completed', 'aborted'];
@@ -191,7 +191,7 @@ export function MissionControl() {
   const mission = useMissionStore((state) => state.mission);
   const activeActorId = useMissionStore((state) => state.activeActorId);
   const logQuickAction = useMissionStore((state) => state.logQuickAction);
-  const triggerEmergency = useMissionStore((state) => state.triggerEmergency);
+  const openEmergencyProtocol = useMissionStore((state) => state.openEmergencyProtocol);
   const updateMissionOverview = useMissionStore((state) => state.updateMissionOverview);
   const resetMissionOverview = useMissionStore((state) => state.resetMissionOverview);
   const updateOperationalTimelineItemDetails = useMissionStore((state) => state.updateOperationalTimelineItemDetails);
@@ -388,6 +388,12 @@ export function MissionControl() {
             <Link className="button primary" to={getMissionPath(mission.mode, 'live-operations')}>
               <Clock3 aria-hidden="true" />
               Timeline
+            </Link>
+          ) : null}
+          {criticalAction.intent === 'wowsa' ? (
+            <Link className="button primary" to={getMissionPath(mission.mode, 'wowsa')}>
+              <Camera aria-hidden="true" />
+              Capture GPS photo
             </Link>
           ) : null}
           {criticalAction.intent === 'protocol' ? (
@@ -807,12 +813,18 @@ export function MissionControl() {
                 </li>
               ))}
             </ul>
-            <div className="mission-emergency-actions calm">
+            <div className="protocol-access">
+              <div className="protocol-access-copy">
+                <strong>Emergency Access</strong>
+                <span>Trigger protocol from here</span>
+              </div>
+              <div className="protocol-button-grid">
               {emergencyActions.map((action) => (
-                <button className={`emergency-button compact ${action.tone}`} key={action.kind} type="button" onClick={() => triggerEmergency(action.kind, activeActorId)}>
+                <Link className="protocol-button" key={action.kind} to={getMissionPath(mission.mode, 'safety')} onClick={() => openEmergencyProtocol(action.kind)}>
                   {action.label}
-                </button>
+                </Link>
               ))}
+              </div>
             </div>
           </div>
         )}

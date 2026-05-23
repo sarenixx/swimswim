@@ -1,28 +1,28 @@
-import { Ambulance, Ban, PhoneCall, ShieldAlert, Siren } from 'lucide-react';
+import { PhoneCall, ShieldAlert } from 'lucide-react';
 import { useState } from 'react';
-import { emergencyLabels, roleLabels } from '../../state/seed';
+import { roleLabels } from '../../state/seed';
 import { formatClock, getActiveAlerts, getProtocolForKind } from '../../state/selectors';
 import type { EmergencyKind } from '../../state/types';
 import { useMissionStore } from '../../state/useMissionStore';
 
-const emergencyButtons: Array<{ kind: EmergencyKind; icon: typeof ShieldAlert; className: string }> = [
-  { kind: 'medical', icon: Ambulance, className: 'emergency-button medical' },
-  { kind: 'distress', icon: Siren, className: 'emergency-button' },
-  { kind: 'abort', icon: Ban, className: 'emergency-button abort' }
-];
+const protocolKinds: EmergencyKind[] = ['medical', 'distress', 'abort'];
+const protocolLabels: Record<EmergencyKind, string> = {
+  medical: 'Medical',
+  distress: 'Distress',
+  abort: 'Abort'
+};
 
 export function SafetyEmergency() {
   const mission = useMissionStore((state) => state.mission);
-  const activeActorId = useMissionStore((state) => state.activeActorId);
-  const triggerEmergency = useMissionStore((state) => state.triggerEmergency);
   const resolveAlert = useMissionStore((state) => state.resolveAlert);
+  const openEmergencyProtocol = useMissionStore((state) => state.openEmergencyProtocol);
   const [selectedKind, setSelectedKind] = useState<EmergencyKind>(mission.activeProtocolKind ?? 'distress');
   const selectedProtocol = getProtocolForKind(mission, selectedKind);
   const activeAlerts = getActiveAlerts(mission);
 
-  const handleEmergency = (kind: EmergencyKind) => {
+  const handleProtocolAccess = (kind: EmergencyKind) => {
     setSelectedKind(kind);
-    triggerEmergency(kind, activeActorId);
+    openEmergencyProtocol(kind);
   };
 
   return (
@@ -30,16 +30,15 @@ export function SafetyEmergency() {
       <section className="panel span-12">
         <div className="panel-header">
           <div>
-            <h3 className="panel-title">Emergency Triggers</h3>
-            <p className="panel-subtitle">Current mission status: {mission.status}</p>
+            <h3 className="panel-title">Emergency Access</h3>
+            <p className="panel-subtitle">Trigger protocol from here</p>
           </div>
           <ShieldAlert aria-hidden="true" />
         </div>
-        <div className="emergency-grid">
-          {emergencyButtons.map((button) => (
-            <button className={button.className} key={button.kind} type="button" onClick={() => handleEmergency(button.kind)}>
-              <button.icon aria-hidden="true" />
-              {emergencyLabels[button.kind]}
+        <div className="protocol-button-grid protocol-button-grid-large">
+          {protocolKinds.map((kind) => (
+            <button className="protocol-button large" key={kind} type="button" onClick={() => handleProtocolAccess(kind)}>
+              {protocolLabels[kind]}
             </button>
           ))}
         </div>
@@ -59,7 +58,7 @@ export function SafetyEmergency() {
                 type="button"
                 onClick={() => setSelectedKind(protocol.kind)}
               >
-                {emergencyLabels[protocol.kind]}
+                {protocolLabels[protocol.kind]}
               </button>
             ))}
           </div>
@@ -113,7 +112,7 @@ export function SafetyEmergency() {
             <h3 className="panel-title">Safety Alerts</h3>
             <p className="panel-subtitle">Active, acknowledged, and resolved emergency flags.</p>
           </div>
-          <Siren aria-hidden="true" />
+          <ShieldAlert aria-hidden="true" />
         </div>
         {activeAlerts.length ? (
           <ul className="alert-list">

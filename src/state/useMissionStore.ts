@@ -70,6 +70,7 @@ export interface MissionStore {
   resetFeedingPlan: () => void;
   updateSafetyPlan: (input: SafetyPlanEdit) => void;
   resetSafetyPlan: () => void;
+  openEmergencyProtocol: (kind: EmergencyKind) => void;
   completeChecklistItem: (itemId: string, actorId?: string) => void;
   completeOperationalTimelineItem: (itemId: string, actorId?: string) => void;
   setChecklistOwner: (itemId: string, ownerId: string) => void;
@@ -808,6 +809,16 @@ const createMissionStore = (storageName: string, seedBuilder: () => Mission): Mi
               contacts: seed.contacts,
               riskPlan: seed.riskPlan,
               conditions: seed.conditions
+            }
+          }));
+        },
+
+        openEmergencyProtocol: (kind) => {
+          set((state) => ({
+            ...state,
+            mission: {
+              ...state.mission,
+              activeProtocolKind: kind
             }
           }));
         },

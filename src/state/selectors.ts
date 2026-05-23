@@ -18,7 +18,7 @@ export interface CriticalAction {
   severity: Exclude<Severity, 'info'> | 'normal';
   dueAt?: string;
   actionLabel: string;
-  intent: 'feeding' | 'protocol' | 'alert' | 'checklist' | 'timeline' | 'monitor';
+  intent: 'feeding' | 'protocol' | 'alert' | 'checklist' | 'timeline' | 'wowsa' | 'monitor';
   alertId?: string;
   checklistItemId?: string;
 }
@@ -313,6 +313,8 @@ export function getNextCriticalAction(mission: Mission, now = new Date()): Criti
   const activeAlerts = getActiveAlerts(mission);
   const criticalAlert = activeAlerts.find((alert) => alert.severity === 'critical');
   const cadenceItems = getOperationalCadence(mission, now);
+  const wowsaDueAt = getWowsaNextDueAt(mission);
+  const wowsaMinutes = getMinutesUntil(wowsaDueAt, now);
   if (criticalAlert) {
     return {
       title: criticalAlert.title,
@@ -328,6 +330,17 @@ export function getNextCriticalAction(mission: Mission, now = new Date()): Criti
           ? 'protocol'
           : 'alert',
       alertId: criticalAlert.id
+    };
+  }
+
+  if (wowsaMinutes <= 10) {
+    return {
+      title: wowsaMinutes <= 0 ? 'WOWSA GPS photo capture overdue' : `WOWSA GPS photo capture in ${wowsaMinutes} min`,
+      detail: 'Capture photo evidence with GPS, timestamp, and distance note.',
+      severity: wowsaMinutes <= 0 ? 'critical' : 'warning',
+      dueAt: wowsaDueAt,
+      actionLabel: 'Capture GPS photo',
+      intent: 'wowsa'
     };
   }
 

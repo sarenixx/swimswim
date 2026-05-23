@@ -4,3 +4,4 @@ dist/
 coverage/
 *.tsbuildinfo
 node_modules/.tmp/
+.codespaces/

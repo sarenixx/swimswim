@@ -12,6 +12,8 @@ create table if not exists public.mission_snapshots (
 
 alter table public.mission_snapshots enable row level security;
 
+grant select, insert, update on public.mission_snapshots to anon, authenticated;
+
 drop policy if exists "mission snapshots readable for test swim" on public.mission_snapshots;
 create policy "mission snapshots readable for test swim"
 on public.mission_snapshots
@@ -53,6 +55,8 @@ create table if not exists public.wowsa_evidence (
 );
 
 alter table public.wowsa_evidence enable row level security;
+
+grant select, insert, update on public.wowsa_evidence to anon, authenticated;
 
 drop policy if exists "wowsa evidence readable for test swim" on public.wowsa_evidence;
 create policy "wowsa evidence readable for test swim"

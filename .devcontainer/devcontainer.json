@@ -1,5 +1,6 @@
 {
   "name": "swimswim",
+  "postAttachCommand": "bash .devcontainer/post-attach.sh",
   "forwardPorts": [5173, 4173],
   "portsAttributes": {
     "5173": {

@@ -14,5 +14,7 @@ Local-first PWA for coordinating high-risk endurance swim expeditions, now deliv
 ## Codespaces
 
 - `.devcontainer/devcontainer.json` forwards `5173` (Vite dev) and `4173` (static preview) by default.
+- On attach, `.devcontainer/post-attach.sh` starts `npm run dev` automatically if nothing is listening on `5173`.
+- Dev-server logs are written to `.codespaces/logs/vite-dev.log`.
 - `npm run dev` serves the app at port `5173` with hostnames allowed for Codespaces and common tunnel domains.
 - `npm run preview` serves the built app at port `4173`.

@@ -32,7 +32,7 @@ import {
   getOperationalCadence,
   getRecentTimeline
 } from '../../state/selectors';
-import type { CrewRole, EmergencyKind, Mission, MissionStatus, QuickLogKind } from '../../state/types';
+import type { CrewRole, Mission, MissionStatus, QuickLogKind } from '../../state/types';
 import { useMissionStore } from '../../state/useMissionStore';
 import { useNow } from '../../lib/useNow';
 
@@ -93,15 +93,6 @@ const quickActions: Array<{
   { kind: 'fatigue-observed', label: 'Fatigue observed' },
   { kind: 'weather-shift', label: 'Weather shift' },
   { kind: 'check-in-confirmed', label: 'Check-in confirmed' }
-];
-
-const emergencyActions: Array<{
-  kind: EmergencyKind;
-  label: string;
-}> = [
-  { kind: 'medical', label: 'Medical' },
-  { kind: 'distress', label: 'Distress' },
-  { kind: 'abort', label: 'Abort' }
 ];
 
 const missionStatuses: MissionStatus[] = ['preparing', 'active', 'paused', 'completed', 'aborted'];
@@ -191,7 +182,6 @@ export function MissionControl() {
   const mission = useMissionStore((state) => state.mission);
   const activeActorId = useMissionStore((state) => state.activeActorId);
   const logQuickAction = useMissionStore((state) => state.logQuickAction);
-  const openEmergencyProtocol = useMissionStore((state) => state.openEmergencyProtocol);
   const updateMissionOverview = useMissionStore((state) => state.updateMissionOverview);
   const resetMissionOverview = useMissionStore((state) => state.resetMissionOverview);
   const updateOperationalTimelineItemDetails = useMissionStore((state) => state.updateOperationalTimelineItemDetails);
@@ -815,16 +805,12 @@ export function MissionControl() {
             </ul>
             <div className="protocol-access">
               <div className="protocol-access-copy">
-                <strong>Emergency Access</strong>
-                <span>Trigger protocol from here</span>
+                <strong>Protocol Scenarios</strong>
+                <span>Review what to do for medical, distress, and abort scenarios.</span>
               </div>
-              <div className="protocol-button-grid">
-              {emergencyActions.map((action) => (
-                <Link className="protocol-button" key={action.kind} to={getMissionPath(mission.mode, 'safety')} onClick={() => openEmergencyProtocol(action.kind)}>
-                  {action.label}
-                </Link>
-              ))}
-              </div>
+              <Link className="protocol-button" to={getMissionPath(mission.mode, 'safety')}>
+                Protocol
+              </Link>
             </div>
           </div>
         )}

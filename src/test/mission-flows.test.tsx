@@ -95,18 +95,20 @@ describe('mission-critical flows', () => {
     expect(state.mission.alerts[0].kind).toBe('fatigue');
   });
 
-  it('opens emergency protocols without raising an alert signal', async () => {
+  it('shows one protocol entry point without raising an alert signal', async () => {
     const user = userEvent.setup();
     renderRoute('/safety');
 
-    expect(await screen.findByText('Emergency Access')).toBeInTheDocument();
-    const statusBeforeProtocolOpen = useMissionStore.getState().mission.status;
-    await user.click(screen.getAllByRole('button', { name: 'Medical' })[0]);
+    expect(await screen.findByText('Protocol Scenarios')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Protocol' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Medical' })).not.toBeInTheDocument();
+    const statusBeforeScenarioReview = useMissionStore.getState().mission.status;
+
+    await user.selectOptions(screen.getByLabelText(/Scenario/i), 'medical');
 
     const state = useMissionStore.getState();
-    expect(state.mission.activeProtocolKind).toBe('medical');
     expect(state.mission.alerts).toHaveLength(0);
-    expect(state.mission.status).toBe(statusBeforeProtocolOpen);
+    expect(state.mission.status).toBe(statusBeforeScenarioReview);
     expect(screen.getByText('Medical Issue Protocol')).toBeInTheDocument();
   });
 

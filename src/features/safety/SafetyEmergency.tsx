@@ -5,7 +5,6 @@ import { formatClock, getActiveAlerts, getProtocolForKind } from '../../state/se
 import type { EmergencyKind } from '../../state/types';
 import { useMissionStore } from '../../state/useMissionStore';
 
-const protocolKinds: EmergencyKind[] = ['medical', 'distress', 'abort'];
 const protocolLabels: Record<EmergencyKind, string> = {
   medical: 'Medical',
   distress: 'Distress',
@@ -15,53 +14,41 @@ const protocolLabels: Record<EmergencyKind, string> = {
 export function SafetyEmergency() {
   const mission = useMissionStore((state) => state.mission);
   const resolveAlert = useMissionStore((state) => state.resolveAlert);
-  const openEmergencyProtocol = useMissionStore((state) => state.openEmergencyProtocol);
   const [selectedKind, setSelectedKind] = useState<EmergencyKind>(mission.activeProtocolKind ?? 'distress');
   const selectedProtocol = getProtocolForKind(mission, selectedKind);
   const activeAlerts = getActiveAlerts(mission);
-
-  const handleProtocolAccess = (kind: EmergencyKind) => {
-    setSelectedKind(kind);
-    openEmergencyProtocol(kind);
-  };
 
   return (
     <div className="page-grid">
       <section className="panel span-12">
         <div className="panel-header">
           <div>
-            <h3 className="panel-title">Emergency Access</h3>
-            <p className="panel-subtitle">Trigger protocol from here</p>
+            <h3 className="panel-title">Protocol Scenarios</h3>
+            <p className="panel-subtitle">Review what to do for medical, distress, and abort scenarios.</p>
           </div>
           <ShieldAlert aria-hidden="true" />
         </div>
-        <div className="protocol-button-grid protocol-button-grid-large">
-          {protocolKinds.map((kind) => (
-            <button className="protocol-button large" key={kind} type="button" onClick={() => handleProtocolAccess(kind)}>
-              {protocolLabels[kind]}
-            </button>
-          ))}
-        </div>
+        <a className="protocol-button large protocol-button-single" href="#scenario-protocol">
+          Protocol
+        </a>
       </section>
 
-      <section className="panel span-7">
+      <section className="panel span-7" id="scenario-protocol">
         <div className="panel-header">
           <div>
             <h3 className="panel-title">{selectedProtocol?.title ?? 'Emergency Protocol'}</h3>
             <p className="panel-subtitle">Step order and role ownership stay visible during response.</p>
           </div>
-          <div className="segmented">
-            {mission.protocols.map((protocol) => (
-              <button
-                className={selectedKind === protocol.kind ? 'segment active' : 'segment'}
-                key={protocol.kind}
-                type="button"
-                onClick={() => setSelectedKind(protocol.kind)}
-              >
-                {protocolLabels[protocol.kind]}
-              </button>
-            ))}
-          </div>
+          <label className="field-label scenario-picker">
+            Scenario
+            <select className="select" value={selectedKind} onChange={(event) => setSelectedKind(event.target.value as EmergencyKind)}>
+              {mission.protocols.map((protocol) => (
+                <option key={protocol.kind} value={protocol.kind}>
+                  {protocolLabels[protocol.kind]}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
         {selectedProtocol ? (
           <ol className="protocol-list">

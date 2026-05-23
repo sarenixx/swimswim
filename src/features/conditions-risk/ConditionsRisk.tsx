@@ -2,19 +2,10 @@ import { AlertTriangle, Ambulance, Ban, PhoneCall, ShieldAlert, Thermometer, Wav
 import { Link } from 'react-router-dom';
 import { getMissionPath } from '../../app/missionNavigation';
 import { formatClock, getActiveAlerts } from '../../state/selectors';
-import type { EmergencyKind } from '../../state/types';
 import { useMissionStore } from '../../state/useMissionStore';
-
-const emergencyKinds: EmergencyKind[] = ['medical', 'distress', 'abort'];
-const protocolLabels: Record<EmergencyKind, string> = {
-  medical: 'Medical',
-  distress: 'Distress',
-  abort: 'Abort'
-};
 
 export function ConditionsRisk() {
   const mission = useMissionStore((state) => state.mission);
-  const openEmergencyProtocol = useMissionStore((state) => state.openEmergencyProtocol);
   const activeAlerts = getActiveAlerts(mission);
   const riskPlan = mission.riskPlan ?? {
     tideWindow: 'Tide window pending',
@@ -162,18 +153,14 @@ export function ConditionsRisk() {
       <section className="panel span-5">
         <div className="panel-header">
           <div>
-            <h3 className="panel-title">Emergency Access</h3>
-            <p className="panel-subtitle">Trigger protocol from here</p>
+            <h3 className="panel-title">Protocol Scenarios</h3>
+            <p className="panel-subtitle">Medical, distress, and abort response guidance.</p>
           </div>
           <PhoneCall aria-hidden="true" />
         </div>
-        <div className="protocol-button-grid">
-          {emergencyKinds.map((kind) => (
-            <Link className="protocol-button" key={kind} to={getMissionPath(mission.mode, 'safety')} onClick={() => openEmergencyProtocol(kind)}>
-              {protocolLabels[kind]}
-            </Link>
-          ))}
-        </div>
+        <Link className="protocol-button" to={getMissionPath(mission.mode, 'safety')}>
+          Protocol
+        </Link>
         <div className="contact-grid risk-contact-grid">
           {mission.contacts.slice(0, 3).map((contact) => (
             <article className="contact-card" key={contact.id}>

@@ -27,6 +27,7 @@ The first demonstrably useful release is a responsive progressive web app, which
 - [x] (2026-05-23 22:00Z) Strengthened the operational MVP with a planned swim timeline and crew backup coverage. Timeline now has arrival, loadout, observer brief, warmup, boat launch, swim start, feed handoff, observer sync, risk reassessment, and recovery standby items; pending timeline items appear in cadence and can be completed into the event log. Crew Coordination now shows on-duty coverage, backup owner, and backup plan per role.
 - [x] (2026-05-23 22:10Z) Simplified Catherine's live dashboard into a calm editable MVP demo. Mission Control now leads with the current action plus five editable cards: Swim Overview, Timeline, Crew, Feed Plan, and Safety Plan. Each card supports edit, save, cancel, and reset, while secondary operational detail sits behind a More Planning Details disclosure.
 - [x] (2026-05-23 22:16Z) Corrected the top Right Now priority back to WOWSA GPS photo capture when evidence is due or overdue, and changed emergency access from alert-style signals to calm protocol access buttons.
+- [x] (2026-05-23 22:18Z) Simplified protocol access further from three scenario buttons to one Protocol button. The detailed Safety page now uses a quiet scenario selector to review medical, distress, and abort protocols without presenting them as primary actions.
 
 ## Surprises & Discoveries
 
@@ -74,8 +75,8 @@ The first demonstrably useful release is a responsive progressive web app, which
   Rationale: The demo needs Catherine to see that the plan can be reviewed and edited with Sarah in real time. Calm hierarchy and visible edit controls reduce cognitive load better than showing every available planning category on the first screen.
   Date/Author: 2026-05-23 / Codex
 
-- Decision: Treat emergency controls in the demo as protocol access, not emergency signaling.
-  Rationale: Catherine needs a simple way to view Medical, Distress, and Abort procedures without accidentally generating alert state or making the page feel like an alarm panel.
+- Decision: Treat emergency controls in the demo as one protocol access point, not three scenario actions.
+  Rationale: Catherine needs a simple way to understand the response playbooks without the dashboard presenting Medical, Distress, and Abort as alarming action buttons.
   Date/Author: 2026-05-23 / Codex
 
 ## Outcomes & Retrospective
@@ -96,7 +97,7 @@ The follow-up pass made the timeline and crew coordination modules more operatio
 
 The Catherine demo pass deliberately reduced the first dashboard surface. The live route now acts as a collaborative editing session with five primary cards and explicit edit/save/cancel/reset controls, while retaining the richer operational state behind collapsed planning details and deeper routes.
 
-The latest correction restored the WOWSA GPS photo capture as the highest visible overdue action when certification evidence is due. Emergency controls now open protocols without creating emergency alerts, keeping the demo calmer while preserving the operational playbooks.
+The latest correction restored the WOWSA GPS photo capture as the highest visible overdue action when certification evidence is due. Protocol access is now a single calm button, with scenario review handled inside the Safety page rather than as three primary actions.
 
 ## Context and Orientation
 

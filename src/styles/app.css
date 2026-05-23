@@ -827,16 +827,6 @@ a {
   font-size: 0.86rem;
 }
 
-.protocol-button-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-2);
-}
-
-.protocol-button-grid-large {
-  grid-template-columns: repeat(3, minmax(140px, 1fr));
-}
-
 .protocol-button {
   display: inline-flex;
   align-items: center;
@@ -861,6 +851,15 @@ a {
 .protocol-button.large {
   min-height: 58px;
   font-size: 1rem;
+}
+
+.protocol-button-single {
+  justify-self: start;
+  min-width: 160px;
+}
+
+.scenario-picker {
+  min-width: 180px;
 }
 
 .timeline-list,
@@ -1360,11 +1359,6 @@ input[type="range"] {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .protocol-button-grid,
-  .protocol-button-grid-large {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
   .emergency-button.compact {
     min-height: 56px;
   }
@@ -1444,11 +1438,6 @@ input[type="range"] {
   }
 
   .mission-emergency-actions {
-    grid-template-columns: 1fr;
-  }
-
-  .protocol-button-grid,
-  .protocol-button-grid-large {
     grid-template-columns: 1fr;
   }
 

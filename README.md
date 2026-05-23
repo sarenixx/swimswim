@@ -10,3 +10,9 @@ Local-first PWA for coordinating high-risk endurance swim expeditions, now deliv
 - `npm run dev` starts the local Vite server.
 - `npm run test` runs the mission-critical flow tests.
 - `npm run build` type-checks and builds the production PWA.
+
+## Codespaces
+
+- `.devcontainer/devcontainer.json` forwards `5173` (Vite dev) and `4173` (static preview) by default.
+- `npm run dev` serves the app at port `5173` with hostnames allowed for Codespaces and common tunnel domains.
+- `npm run preview` serves the built app at port `4173`.

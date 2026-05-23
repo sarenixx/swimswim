@@ -1,0 +1,16 @@
+{
+  "name": "swimswim",
+  "forwardPorts": [5173, 4173],
+  "portsAttributes": {
+    "5173": {
+      "label": "Vite Dev Server",
+      "onAutoForward": "openPreview",
+      "protocol": "http"
+    },
+    "4173": {
+      "label": "Static Preview",
+      "onAutoForward": "notify",
+      "protocol": "http"
+    }
+  }
+}

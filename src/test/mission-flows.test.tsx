@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { addMinutes } from 'date-fns';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
@@ -20,12 +20,52 @@ describe('mission-critical flows', () => {
     useTemplateMissionStore.getState().setOnlineStatus(true);
   });
 
-  it('surfaces overdue WOWSA evidence as the critical action', async () => {
+  it('surfaces the next readiness or feeding action as the critical action', async () => {
     renderRoute('/');
 
     expect(await screen.findByText('Next Critical Action')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /WOWSA photo overdue/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Prepare nutrition bottle/i })).toBeInTheDocument();
     expect(screen.getByText('Active Alerts')).toBeInTheDocument();
+  });
+
+  it('opens the focused feeding plan with nutrition and backup options', async () => {
+    renderRoute('/feeding');
+
+    expect(await screen.findByText('Feeding Window')).toBeInTheDocument();
+    expect(screen.getByText('Standard carb bottle')).toBeInTheDocument();
+    expect(screen.getAllByText('Warm broth backup').length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/350 mg sodium/i).length).toBeGreaterThan(0);
+  });
+
+  it('opens conditions and risk with abort criteria visible', async () => {
+    renderRoute('/conditions-risk');
+
+    expect(await screen.findByText('Abort Conditions')).toBeInTheDocument();
+    expect(screen.getByText(/Flood easing/i)).toBeInTheDocument();
+    expect(screen.getByText(/Wind above 18 kt/i)).toBeInTheDocument();
+  });
+
+  it('shows and completes planned swim timeline items', async () => {
+    const user = userEvent.setup();
+    renderRoute('/live-operations');
+
+    expect(await screen.findByText('Planned Swim Timeline')).toBeInTheDocument();
+    const item = screen.getAllByText('Next feed handoff window')[0].closest('li');
+    expect(item).not.toBeNull();
+
+    await user.click(within(item!).getByRole('button', { name: /Complete/i }));
+
+    const state = useMissionStore.getState();
+    expect(state.mission.operationalTimeline.find((entry) => entry.id === 'op-next-feed')?.status).toBe('done');
+    expect(state.mission.timeline[0].summary).toBe('Planned timeline item completed');
+  });
+
+  it('shows crew backup coverage', async () => {
+    renderRoute('/crew');
+
+    expect(await screen.findByText('Coverage')).toBeInTheDocument();
+    expect(screen.getAllByText(/Backup: Luis Ortega/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Safety lead holds command channel/i)).toBeInTheDocument();
   });
 
   it('adds a timestamped timeline entry from quick log', async () => {

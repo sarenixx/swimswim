@@ -36,6 +36,60 @@ export function buildLiveSeedMission(now = new Date()): Mission {
     wowsaPhotoIntervalMinutes: 30,
     lastFeedingAt: iso(subMinutes(now, 26)),
     nextFeedingAt: iso(addMinutes(now, 4)),
+    feedingPlan: [
+      {
+        id: 'feed-standard-carb',
+        label: 'Standard carb bottle',
+        intervalMinutes: 30,
+        calories: 180,
+        hydrationOz: 12,
+        electrolytesMg: 350,
+        notes: 'Primary kayak handoff. Confirm verbal response before resuming formation.',
+        backup: false
+      },
+      {
+        id: 'feed-warm-broth',
+        label: 'Warm broth backup',
+        intervalMinutes: 60,
+        calories: 90,
+        hydrationOz: 8,
+        electrolytesMg: 500,
+        notes: 'Use if swimmer reports cold stress, nausea, or refusal of sweet feed.',
+        backup: true
+      },
+      {
+        id: 'feed-gel-water',
+        label: 'Gel plus water backup',
+        intervalMinutes: 30,
+        calories: 110,
+        hydrationOz: 6,
+        electrolytesMg: 125,
+        notes: 'Compact backup held by relief kayak.',
+        backup: true
+      }
+    ],
+    riskPlan: {
+      tideWindow: 'Flood easing after 08:40; reassess at each hour mark',
+      weatherSource: 'NOAA marine forecast, harbor report, support vessel observation',
+      abortConditions: [
+        'Sustained swimmer distress or loss of coherent response',
+        'Water temperature response indicates escalating cold stress',
+        'Wind above 18 kt or confused swell preventing safe escort',
+        'Support vessel or kayak cannot maintain assigned formation',
+        'Lightning, dense fog, or authority-directed evacuation'
+      ],
+      medicalConcerns: [
+        'Cold stress and dexterity loss',
+        'Nausea or repeated feed refusal',
+        'Shoulder pain altering stroke mechanics',
+        'Confusion, slurred responses, or unusual mood shift'
+      ],
+      mitigationNotes: [
+        'Medic owns condition scan every 30 minutes',
+        'Captain owns go/no-go calls and abort confirmation',
+        'Kayak escort keeps backup nutrition within reach'
+      ]
+    },
     position: {
       lat: 33.397,
       lon: -118.412,
@@ -60,7 +114,9 @@ export function buildLiveSeedMission(now = new Date()): Mission {
         phone: '+1 310 555 0141',
         shiftStart: iso(shiftStart),
         shiftEnd: iso(shiftEnd),
-        responsibilities: ['Final go/no-go authority', 'Broadcasts', 'Incident coordination']
+        responsibilities: ['Final go/no-go authority', 'Broadcasts', 'Incident coordination'],
+        backupId: 'crew-safety',
+        backupPlan: 'Safety lead holds command channel if captain is occupied with vessel or emergency coordination.'
       },
       {
         id: 'crew-safety',
@@ -69,7 +125,9 @@ export function buildLiveSeedMission(now = new Date()): Mission {
         phone: '+1 310 555 0182',
         shiftStart: iso(shiftStart),
         shiftEnd: iso(shiftEnd),
-        responsibilities: ['Safety watch', 'Check-in cadence', 'Alert verification']
+        responsibilities: ['Safety watch', 'Check-in cadence', 'Alert verification'],
+        backupId: 'crew-boat',
+        backupPlan: 'Boat lead maintains hazard watch while safety lead logs or escalates.'
       },
       {
         id: 'crew-medical',
@@ -78,7 +136,9 @@ export function buildLiveSeedMission(now = new Date()): Mission {
         phone: '+1 310 555 0188',
         shiftStart: iso(shiftStart),
         shiftEnd: iso(nextShiftEnd),
-        responsibilities: ['Medical readiness', 'Condition assessment', 'Recovery protocol']
+        responsibilities: ['Medical readiness', 'Condition assessment', 'Recovery protocol'],
+        backupId: 'crew-captain',
+        backupPlan: 'Captain pauses operations and routes swimmer to external medical support if medic is unavailable.'
       },
       {
         id: 'crew-kayak-1',
@@ -87,7 +147,9 @@ export function buildLiveSeedMission(now = new Date()): Mission {
         phone: '+1 310 555 0158',
         shiftStart: iso(shiftStart),
         shiftEnd: iso(shiftEnd),
-        responsibilities: ['Primary escort', 'Feeding handoff', 'Swimmer observation']
+        responsibilities: ['Primary escort', 'Feeding handoff', 'Swimmer observation'],
+        backupId: 'crew-kayak-2',
+        backupPlan: 'Relief kayak takes feeding handoff and visual escort if primary kayak rotates out.'
       },
       {
         id: 'crew-kayak-2',
@@ -96,7 +158,9 @@ export function buildLiveSeedMission(now = new Date()): Mission {
         phone: '+1 310 555 0177',
         shiftStart: iso(nextShiftStart),
         shiftEnd: iso(nextShiftEnd),
-        responsibilities: ['Relief escort', 'Spare nutrition', 'Condition confirmation']
+        responsibilities: ['Relief escort', 'Spare nutrition', 'Condition confirmation'],
+        backupId: 'crew-kayak-1',
+        backupPlan: 'Primary kayak keeps spare bottle if relief kayak is repositioning.'
       },
       {
         id: 'crew-boat',
@@ -105,7 +169,9 @@ export function buildLiveSeedMission(now = new Date()): Mission {
         phone: '+1 310 555 0137',
         shiftStart: iso(shiftStart),
         shiftEnd: iso(nextShiftEnd),
-        responsibilities: ['Vessel operations', 'Route bearing', 'Radio watch']
+        responsibilities: ['Vessel operations', 'Route bearing', 'Radio watch'],
+        backupId: 'crew-captain',
+        backupPlan: 'Captain assigns radio watch to safety lead while boat lead handles vessel maneuver.'
       },
       {
         id: 'crew-media',
@@ -114,7 +180,9 @@ export function buildLiveSeedMission(now = new Date()): Mission {
         phone: '+1 310 555 0163',
         shiftStart: iso(shiftStart),
         shiftEnd: iso(shiftEnd),
-        responsibilities: ['Content capture', 'Sponsor notes', 'Non-operational updates']
+        responsibilities: ['Content capture', 'Sponsor notes', 'Non-operational updates'],
+        backupId: 'crew-safety',
+        backupPlan: 'Evidence and media work stops immediately if safety needs another recorder or lookout.'
       }
     ],
     checklistItems: [
@@ -236,6 +304,51 @@ export function buildLiveSeedMission(now = new Date()): Mission {
         status: 'done'
       },
       {
+        id: 'pre-swim-gear-packed',
+        category: 'pre-swim',
+        title: 'Swim gear packed: suit, goggles, caps, grease, towels, warm layers',
+        ownerId: 'crew-safety',
+        completedAt: iso(subMinutes(now, 70)),
+        completedBy: 'crew-safety',
+        status: 'done'
+      },
+      {
+        id: 'pre-nutrition-crates',
+        category: 'pre-swim',
+        title: 'Nutrition crates labeled by interval with backup bottles staged',
+        ownerId: 'crew-kayak-1',
+        completedAt: iso(subMinutes(now, 68)),
+        completedBy: 'crew-kayak-1',
+        status: 'done'
+      },
+      {
+        id: 'pre-electronics-charged',
+        category: 'pre-swim',
+        title: 'Electronics charged: phones, GPS, radios, lights, battery banks',
+        ownerId: 'crew-boat',
+        completedAt: iso(subMinutes(now, 66)),
+        completedBy: 'crew-boat',
+        status: 'done'
+      },
+      {
+        id: 'pre-documents-ready',
+        category: 'pre-swim',
+        title: 'Documents ready: permits, float plan, emergency contacts, observer notes',
+        ownerId: 'crew-captain',
+        completedAt: iso(subMinutes(now, 64)),
+        completedBy: 'crew-captain',
+        status: 'done'
+      },
+      {
+        id: 'pre-crew-supplies',
+        category: 'pre-swim',
+        title: 'Crew supplies packed: water, food, sunscreen, dry bags, seasick meds',
+        ownerId: 'crew-safety',
+        completedAt: iso(subMinutes(now, 62)),
+        completedBy: 'crew-safety',
+        status: 'done'
+      },
+      {
         id: 'in-kayak-check',
         category: 'in-swim',
         title: 'Kayak team check-in confirmed',
@@ -311,6 +424,114 @@ export function buildLiveSeedMission(now = new Date()): Mission {
         ownerId: 'crew-medical',
         dueAt: iso(addMinutes(now, 48)),
         status: 'pending'
+      }
+    ],
+    operationalTimeline: [
+      {
+        id: 'op-arrival',
+        category: 'arrival',
+        label: 'Crew arrival and shore staging',
+        at: iso(subMinutes(startedAt, 150)),
+        ownerId: 'crew-captain',
+        status: 'done',
+        completedAt: iso(subMinutes(startedAt, 148)),
+        completedBy: 'crew-captain',
+        notes: 'All crew physically present, contact sheet checked, gear staged by vessel.'
+      },
+      {
+        id: 'op-loadout',
+        category: 'loading',
+        label: 'Boat loadout and equipment check',
+        at: iso(subMinutes(startedAt, 105)),
+        ownerId: 'crew-boat',
+        status: 'done',
+        completedAt: iso(subMinutes(startedAt, 101)),
+        completedBy: 'crew-boat',
+        notes: 'Fuel, radios, GPS, safety gear, nutrition crates, and recovery bag loaded.'
+      },
+      {
+        id: 'op-observer-brief',
+        category: 'observer',
+        label: 'Observer timing and rules brief',
+        at: iso(subMinutes(startedAt, 75)),
+        ownerId: 'crew-captain',
+        status: 'done',
+        completedAt: iso(subMinutes(startedAt, 73)),
+        completedBy: 'crew-captain',
+        notes: 'Observer clock, start confirmation, feed rules, and evidence cadence aligned.'
+      },
+      {
+        id: 'op-warmup',
+        category: 'warmup',
+        label: 'Swimmer warmup and pre-entry condition check',
+        at: iso(subMinutes(startedAt, 45)),
+        ownerId: 'crew-medical',
+        status: 'done',
+        completedAt: iso(subMinutes(startedAt, 42)),
+        completedBy: 'crew-medical',
+        notes: 'Vitals, cold response, goggles, cap, grease, and communication cues confirmed.'
+      },
+      {
+        id: 'op-boat-launch',
+        category: 'launch',
+        label: 'Boat launch and escort formation',
+        at: iso(subMinutes(startedAt, 30)),
+        ownerId: 'crew-boat',
+        status: 'done',
+        completedAt: iso(subMinutes(startedAt, 28)),
+        completedBy: 'crew-boat',
+        notes: 'Support vessel and kayaks moved into start formation.'
+      },
+      {
+        id: 'op-swim-start',
+        category: 'swim',
+        label: 'Official swim start and observer clock',
+        at: iso(startedAt),
+        ownerId: 'crew-captain',
+        status: 'done',
+        completedAt: iso(startedAt),
+        completedBy: 'crew-captain',
+        notes: 'Start GPS, observer time, and all-team check-in logged.'
+      },
+      {
+        id: 'op-next-feed',
+        category: 'feeding',
+        label: 'Next feed handoff window',
+        at: iso(addMinutes(now, 4)),
+        ownerId: 'crew-kayak-1',
+        status: 'pending',
+        contingencyWindowMinutes: 5,
+        notes: 'Prepare primary carb bottle plus warm broth backup.'
+      },
+      {
+        id: 'op-observer-sync',
+        category: 'observer',
+        label: 'Observer time and GPS sync',
+        at: iso(addMinutes(now, 18)),
+        ownerId: 'crew-safety',
+        status: 'pending',
+        contingencyWindowMinutes: 10,
+        notes: 'Confirm observer log, feed count, GPS position, and active crew status.'
+      },
+      {
+        id: 'op-risk-window',
+        category: 'risk',
+        label: 'Weather, current, and abort threshold reassessment',
+        at: iso(addMinutes(now, 34)),
+        ownerId: 'crew-captain',
+        status: 'pending',
+        contingencyWindowMinutes: 15,
+        notes: 'Captain confirms continue, adjust route, pause, or abort.'
+      },
+      {
+        id: 'op-recovery-standby',
+        category: 'recovery',
+        label: 'Recovery station standby check',
+        at: iso(addHours(now, 2)),
+        ownerId: 'crew-medical',
+        status: 'pending',
+        contingencyWindowMinutes: 30,
+        notes: 'Warm handoff, dry layers, vitals station, and recovery nutrition staged.'
       }
     ],
     timeline: [
@@ -529,6 +750,59 @@ export function buildTemplateSeedMission(now = new Date()): Mission {
     wowsaPhotoIntervalMinutes: 30,
     lastFeedingAt: iso(subMinutes(now, 27)),
     nextFeedingAt: iso(addMinutes(now, 3)),
+    feedingPlan: [
+      {
+        id: 'feed-standard-carb',
+        label: 'Primary feed [replace]',
+        intervalMinutes: 30,
+        calories: 180,
+        hydrationOz: 12,
+        electrolytesMg: 350,
+        notes: 'Primary nutrition option and handoff note.',
+        backup: false
+      },
+      {
+        id: 'feed-warm-backup',
+        label: 'Warm backup [replace]',
+        intervalMinutes: 60,
+        calories: 90,
+        hydrationOz: 8,
+        electrolytesMg: 500,
+        notes: 'Backup for cold stress, nausea, or feed refusal.',
+        backup: true
+      },
+      {
+        id: 'feed-compact-backup',
+        label: 'Compact backup [replace]',
+        intervalMinutes: 30,
+        calories: 110,
+        hydrationOz: 6,
+        electrolytesMg: 125,
+        notes: 'Small fallback carried by escort.',
+        backup: true
+      }
+    ],
+    riskPlan: {
+      tideWindow: '[Tide/current window and reassessment cadence]',
+      weatherSource: '[Marine forecast source, harbor report, vessel observation]',
+      abortConditions: [
+        'Sustained swimmer distress or loss of coherent response',
+        'Cold stress, medical concern, or repeated feed refusal',
+        'Unsafe wind, swell, visibility, lightning, or authority instruction',
+        'Support craft cannot maintain safe formation'
+      ],
+      medicalConcerns: [
+        'Cold stress',
+        'Nausea or feed refusal',
+        'Pain altering stroke mechanics',
+        'Confusion or unusual mood shift'
+      ],
+      mitigationNotes: [
+        'Assign medical scan owner and interval',
+        'Assign go/no-go decision owner',
+        'Stage backup nutrition with escort'
+      ]
+    },
     position: {
       lat: 36.615,
       lon: -121.91,
@@ -553,7 +827,9 @@ export function buildTemplateSeedMission(now = new Date()): Mission {
         phone: '+1 000 000 0001',
         shiftStart: iso(shiftStart),
         shiftEnd: iso(shiftEnd),
-        responsibilities: ['Command authority', 'Go/no-go decision', 'Broadcast ownership']
+        responsibilities: ['Command authority', 'Go/no-go decision', 'Broadcast ownership'],
+        backupId: 'crew-safety',
+        backupPlan: 'Safety lead becomes temporary broadcast owner if captain is unavailable.'
       },
       {
         id: 'crew-safety',
@@ -562,7 +838,9 @@ export function buildTemplateSeedMission(now = new Date()): Mission {
         phone: '+1 000 000 0002',
         shiftStart: iso(shiftStart),
         shiftEnd: iso(shiftEnd),
-        responsibilities: ['Hazard watch', 'Check-in cadence', 'Incident documentation']
+        responsibilities: ['Hazard watch', 'Check-in cadence', 'Incident documentation'],
+        backupId: 'crew-boat',
+        backupPlan: 'Boat lead covers hazard watch while safety lead documents or escalates.'
       },
       {
         id: 'crew-medical',
@@ -571,7 +849,9 @@ export function buildTemplateSeedMission(now = new Date()): Mission {
         phone: '+1 000 000 0003',
         shiftStart: iso(shiftStart),
         shiftEnd: iso(nextShiftEnd),
-        responsibilities: ['Medical readiness', 'Condition assessments', 'Recovery workflow']
+        responsibilities: ['Medical readiness', 'Condition assessments', 'Recovery workflow'],
+        backupId: 'crew-captain',
+        backupPlan: 'Captain routes swimmer to external medical support if medical lead is unavailable.'
       },
       {
         id: 'crew-kayak-1',
@@ -580,7 +860,9 @@ export function buildTemplateSeedMission(now = new Date()): Mission {
         phone: '+1 000 000 0004',
         shiftStart: iso(shiftStart),
         shiftEnd: iso(shiftEnd),
-        responsibilities: ['Primary escort', 'Feeding handoff', 'Stroke observation']
+        responsibilities: ['Primary escort', 'Feeding handoff', 'Stroke observation'],
+        backupId: 'crew-kayak-2',
+        backupPlan: 'Relief escort takes over feeding and visual support during rotation.'
       },
       {
         id: 'crew-kayak-2',
@@ -589,7 +871,9 @@ export function buildTemplateSeedMission(now = new Date()): Mission {
         phone: '+1 000 000 0005',
         shiftStart: iso(nextShiftStart),
         shiftEnd: iso(nextShiftEnd),
-        responsibilities: ['Relief escort', 'Backup nutrition', 'Visual confirmation']
+        responsibilities: ['Relief escort', 'Backup nutrition', 'Visual confirmation'],
+        backupId: 'crew-kayak-1',
+        backupPlan: 'Primary escort keeps backup nutrition if relief escort is repositioning.'
       },
       {
         id: 'crew-boat',
@@ -598,7 +882,9 @@ export function buildTemplateSeedMission(now = new Date()): Mission {
         phone: '+1 000 000 0006',
         shiftStart: iso(shiftStart),
         shiftEnd: iso(nextShiftEnd),
-        responsibilities: ['Vessel operations', 'Navigation track', 'Radio watch']
+        responsibilities: ['Vessel operations', 'Navigation track', 'Radio watch'],
+        backupId: 'crew-captain',
+        backupPlan: 'Captain assigns radio watch to safety lead if boat lead is maneuvering.'
       },
       {
         id: 'crew-media',
@@ -607,7 +893,9 @@ export function buildTemplateSeedMission(now = new Date()): Mission {
         phone: '+1 000 000 0007',
         shiftStart: iso(shiftStart),
         shiftEnd: iso(shiftEnd),
-        responsibilities: ['Certification photos', 'Partner deliverables', 'Media archive']
+        responsibilities: ['Certification photos', 'Partner deliverables', 'Media archive'],
+        backupId: 'crew-safety',
+        backupPlan: 'Media work pauses and evidence lead becomes spare recorder/lookout when safety needs support.'
       }
     ],
     checklistItems: [
@@ -729,6 +1017,51 @@ export function buildTemplateSeedMission(now = new Date()): Mission {
         status: 'done'
       },
       {
+        id: 'pre-swim-gear-packed',
+        category: 'pre-swim',
+        title: 'Swim gear packed: suit, goggles, caps, grease, towels, warm layers',
+        ownerId: 'crew-safety',
+        completedAt: iso(subMinutes(now, 64)),
+        completedBy: 'crew-safety',
+        status: 'done'
+      },
+      {
+        id: 'pre-nutrition-crates',
+        category: 'pre-swim',
+        title: 'Nutrition crates labeled by interval with backup bottles staged',
+        ownerId: 'crew-kayak-1',
+        completedAt: iso(subMinutes(now, 62)),
+        completedBy: 'crew-kayak-1',
+        status: 'done'
+      },
+      {
+        id: 'pre-electronics-charged',
+        category: 'pre-swim',
+        title: 'Electronics charged: phones, GPS, radios, lights, battery banks',
+        ownerId: 'crew-boat',
+        completedAt: iso(subMinutes(now, 60)),
+        completedBy: 'crew-boat',
+        status: 'done'
+      },
+      {
+        id: 'pre-documents-ready',
+        category: 'pre-swim',
+        title: 'Documents ready: permits, float plan, emergency contacts, observer notes',
+        ownerId: 'crew-captain',
+        completedAt: iso(subMinutes(now, 58)),
+        completedBy: 'crew-captain',
+        status: 'done'
+      },
+      {
+        id: 'pre-crew-supplies',
+        category: 'pre-swim',
+        title: 'Crew supplies packed: water, food, sunscreen, dry bags, seasick meds',
+        ownerId: 'crew-safety',
+        completedAt: iso(subMinutes(now, 56)),
+        completedBy: 'crew-safety',
+        status: 'done'
+      },
+      {
         id: 'in-kayak-check',
         category: 'in-swim',
         title: 'Support crew schedule check-in (rotate roles and confirm readiness)',
@@ -804,6 +1137,114 @@ export function buildTemplateSeedMission(now = new Date()): Mission {
         ownerId: 'crew-medical',
         dueAt: iso(addMinutes(now, 46)),
         status: 'pending'
+      }
+    ],
+    operationalTimeline: [
+      {
+        id: 'op-arrival',
+        category: 'arrival',
+        label: 'Crew arrival and shore staging',
+        at: iso(subMinutes(startedAt, 150)),
+        ownerId: 'crew-captain',
+        status: 'done',
+        completedAt: iso(subMinutes(startedAt, 148)),
+        completedBy: 'crew-captain',
+        notes: 'All crew present, contacts checked, and gear staged by vessel.'
+      },
+      {
+        id: 'op-loadout',
+        category: 'loading',
+        label: 'Boat loadout and equipment check',
+        at: iso(subMinutes(startedAt, 105)),
+        ownerId: 'crew-boat',
+        status: 'done',
+        completedAt: iso(subMinutes(startedAt, 101)),
+        completedBy: 'crew-boat',
+        notes: 'Fuel, radios, GPS, safety gear, nutrition crates, and recovery bag loaded.'
+      },
+      {
+        id: 'op-observer-brief',
+        category: 'observer',
+        label: 'Observer timing and rules brief',
+        at: iso(subMinutes(startedAt, 75)),
+        ownerId: 'crew-captain',
+        status: 'done',
+        completedAt: iso(subMinutes(startedAt, 73)),
+        completedBy: 'crew-captain',
+        notes: 'Observer clock, start confirmation, feed rules, and evidence cadence aligned.'
+      },
+      {
+        id: 'op-warmup',
+        category: 'warmup',
+        label: 'Swimmer warmup and pre-entry condition check',
+        at: iso(subMinutes(startedAt, 45)),
+        ownerId: 'crew-medical',
+        status: 'done',
+        completedAt: iso(subMinutes(startedAt, 42)),
+        completedBy: 'crew-medical',
+        notes: 'Vitals, cold response, goggles, cap, grease, and communication cues confirmed.'
+      },
+      {
+        id: 'op-boat-launch',
+        category: 'launch',
+        label: 'Boat launch and escort formation',
+        at: iso(subMinutes(startedAt, 30)),
+        ownerId: 'crew-boat',
+        status: 'done',
+        completedAt: iso(subMinutes(startedAt, 28)),
+        completedBy: 'crew-boat',
+        notes: 'Support vessel and kayaks moved into start formation.'
+      },
+      {
+        id: 'op-swim-start',
+        category: 'swim',
+        label: 'Official swim start and observer clock',
+        at: iso(startedAt),
+        ownerId: 'crew-captain',
+        status: 'done',
+        completedAt: iso(startedAt),
+        completedBy: 'crew-captain',
+        notes: 'Start GPS, observer time, and all-team check-in logged.'
+      },
+      {
+        id: 'op-next-feed',
+        category: 'feeding',
+        label: 'Next feed handoff window',
+        at: iso(addMinutes(now, 3)),
+        ownerId: 'crew-kayak-1',
+        status: 'pending',
+        contingencyWindowMinutes: 5,
+        notes: 'Prepare primary feed and backup nutrition.'
+      },
+      {
+        id: 'op-observer-sync',
+        category: 'observer',
+        label: 'Observer time and GPS sync',
+        at: iso(addMinutes(now, 16)),
+        ownerId: 'crew-safety',
+        status: 'pending',
+        contingencyWindowMinutes: 10,
+        notes: 'Confirm observer log, feed count, GPS position, and active crew status.'
+      },
+      {
+        id: 'op-risk-window',
+        category: 'risk',
+        label: 'Weather, current, and abort threshold reassessment',
+        at: iso(addMinutes(now, 30)),
+        ownerId: 'crew-captain',
+        status: 'pending',
+        contingencyWindowMinutes: 15,
+        notes: 'Captain confirms continue, adjust route, pause, or abort.'
+      },
+      {
+        id: 'op-recovery-standby',
+        category: 'recovery',
+        label: 'Recovery station standby check',
+        at: iso(addHours(now, 2)),
+        ownerId: 'crew-medical',
+        status: 'pending',
+        contingencyWindowMinutes: 30,
+        notes: 'Warm handoff, dry layers, vitals station, and recovery nutrition staged.'
       }
     ],
     timeline: [

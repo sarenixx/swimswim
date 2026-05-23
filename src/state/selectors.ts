@@ -7,6 +7,7 @@ import type {
   CrewMember,
   EmergencyKind,
   Mission,
+  OperationalTimelineItem,
   Severity,
   TimelineEvent
 } from './types';
@@ -17,12 +18,12 @@ export interface CriticalAction {
   severity: Exclude<Severity, 'info'> | 'normal';
   dueAt?: string;
   actionLabel: string;
-  intent: 'feeding' | 'protocol' | 'alert' | 'checklist' | 'wowsa' | 'monitor';
+  intent: 'feeding' | 'protocol' | 'alert' | 'checklist' | 'timeline' | 'monitor';
   alertId?: string;
   checklistItemId?: string;
 }
 
-export type ReadinessDomain = 'boat' | 'swim' | 'medical' | 'wellness' | 'media';
+export type ReadinessDomain = 'packing' | 'nutrition' | 'safety' | 'medical' | 'crew' | 'evidence';
 
 export interface ReadinessGroup {
   domain: ReadinessDomain;
@@ -42,16 +43,18 @@ export interface CadenceItem {
   dueAt: string;
   minutesUntil: number;
   severity: 'normal' | 'warning' | 'critical';
-  action: 'feeding' | 'check-in' | 'condition' | 'wowsa' | 'checklist';
+  action: 'feeding' | 'check-in' | 'condition' | 'checklist' | 'timeline';
   checklistItemId?: string;
+  timelineItemId?: string;
 }
 
 export const readinessDomainLabels: Record<ReadinessDomain, string> = {
-  boat: 'Boat Safety',
-  swim: 'Swim Safety',
+  packing: 'Packing',
+  nutrition: 'Nutrition',
+  safety: 'Safety',
   medical: 'Medical',
-  wellness: 'Wellness',
-  media: 'WOWSA / Media'
+  crew: 'Crew',
+  evidence: 'Docs / Evidence'
 };
 
 export function getCrewMember(mission: Mission, crewId: string): CrewMember | undefined {
@@ -102,6 +105,18 @@ export function getChecklistStatus(item: ChecklistItem, now = new Date()): Check
   return item.status;
 }
 
+export function getOperationalTimelineStatus(item: OperationalTimelineItem, now = new Date()): 'pending' | 'done' | 'overdue' {
+  if (item.status === 'done' || item.completedAt) {
+    return 'done';
+  }
+
+  if (new Date(item.at).getTime() < now.getTime()) {
+    return 'overdue';
+  }
+
+  return 'pending';
+}
+
 export function getOverdueChecklistItems(mission: Mission, now = new Date()): ChecklistItem[] {
   return mission.checklistItems.filter((item) => getChecklistStatus(item, now) === 'overdue');
 }
@@ -109,12 +124,37 @@ export function getOverdueChecklistItems(mission: Mission, now = new Date()): Ch
 export function getChecklistDomain(item: ChecklistItem): ReadinessDomain {
   const text = `${item.id} ${item.title} ${item.ownerId}`.toLowerCase();
 
-  if (item.category === 'mental-health' || text.includes('wellness') || text.includes('mental')) {
-    return 'wellness';
+  if (
+    text.includes('nutrition') ||
+    text.includes('feeding') ||
+    text.includes('hydration') ||
+    text.includes('bottle') ||
+    text.includes('electrolyte')
+  ) {
+    return 'nutrition';
   }
 
-  if (text.includes('wowsa') || text.includes('sponsor') || text.includes('photo') || text.includes('media')) {
-    return 'media';
+  if (
+    text.includes('packed') ||
+    text.includes('gear') ||
+    text.includes('electronics') ||
+    text.includes('supplies') ||
+    text.includes('crate') ||
+    text.includes('dry bag')
+  ) {
+    return 'packing';
+  }
+
+  if (
+    text.includes('document') ||
+    text.includes('permit') ||
+    text.includes('float plan') ||
+    text.includes('observer') ||
+    text.includes('wowsa') ||
+    text.includes('photo') ||
+    text.includes('media')
+  ) {
+    return 'evidence';
   }
 
   if (text.includes('medical') || text.includes('recovery') || text.includes('condition scan') || item.ownerId === 'crew-medical') {
@@ -122,20 +162,35 @@ export function getChecklistDomain(item: ChecklistItem): ReadinessDomain {
   }
 
   if (
+    text.includes('safety') ||
     text.includes('boat') ||
     text.includes('vhf') ||
     text.includes('gps/chart') ||
-    text.includes('float plan') ||
     text.includes('pfd') ||
     text.includes('fuel') ||
     text.includes('forecast') ||
     text.includes('vessel') ||
+    text.includes('abort') ||
+    text.includes('wildlife') ||
+    text.includes('water temperature') ||
     item.ownerId === 'crew-boat'
   ) {
-    return 'boat';
+    return 'safety';
   }
 
-  return 'swim';
+  if (
+    item.category === 'mental-health' ||
+    text.includes('wellness') ||
+    text.includes('mental') ||
+    text.includes('check-in') ||
+    text.includes('rotation') ||
+    item.ownerId === 'crew-captain' ||
+    item.ownerId === 'crew-safety'
+  ) {
+    return 'crew';
+  }
+
+  return 'safety';
 }
 
 export function getReadinessGroups(mission: Mission, now = new Date()): ReadinessGroup[] {
@@ -222,28 +277,32 @@ export function getOperationalCadence(mission: Mission, now = new Date()): Caden
     });
 
   const feedingMinutes = getMinutesUntil(mission.nextFeedingAt, now);
-  const wowsaDueAt = getWowsaNextDueAt(mission);
-  const wowsaMinutes = getMinutesUntil(wowsaDueAt, now);
-
+  const timelineCadence = (mission.operationalTimeline ?? [])
+    .filter((item) => getOperationalTimelineStatus(item, now) !== 'done')
+    .map<CadenceItem>((item) => {
+      const minutesUntil = getMinutesUntil(item.at, now);
+      return {
+        id: `timeline-${item.id}`,
+        label: item.label,
+        detail: `${getCrewLabel(mission, item.ownerId)} · ${item.notes}`,
+        dueAt: item.at,
+        minutesUntil,
+        severity: minutesUntil <= 0 ? 'critical' : minutesUntil <= 10 ? 'warning' : 'normal',
+        action: 'timeline',
+        timelineItemId: item.id
+      };
+    });
   const cadence: CadenceItem[] = [
     {
       id: 'cadence-feeding',
       label: 'Feeding window',
-      detail: 'Kayak team confirms nutrition, handoff side, and swimmer response.',
+      detail: 'Kayak team confirms calories, hydration, electrolytes, and swimmer response.',
       dueAt: mission.nextFeedingAt,
       minutesUntil: feedingMinutes,
       severity: feedingMinutes <= 0 ? 'critical' : feedingMinutes <= 5 ? 'warning' : 'normal',
       action: 'feeding'
     },
-    {
-      id: 'cadence-wowsa',
-      label: 'WOWSA photo checkpoint',
-      detail: (mission.wowsaPhotos ?? []).length ? 'Certification photo cadence is active.' : 'Start certification photo evidence cadence.',
-      dueAt: wowsaDueAt,
-      minutesUntil: wowsaMinutes,
-      severity: wowsaMinutes <= 0 ? 'critical' : wowsaMinutes <= 5 ? 'warning' : 'normal',
-      action: 'wowsa'
-    },
+    ...timelineCadence,
     ...checklistCadence
   ];
 
@@ -278,19 +337,12 @@ export function getNextCriticalAction(mission: Mission, now = new Date()): Criti
       title:
         criticalCadence.action === 'feeding'
           ? 'Feeding overdue'
-          : criticalCadence.action === 'wowsa'
-            ? 'WOWSA photo overdue'
-            : `${criticalCadence.label} overdue`,
+          : `${criticalCadence.label} overdue`,
       detail: criticalCadence.detail,
       severity: 'critical',
       dueAt: criticalCadence.dueAt,
-      actionLabel: criticalCadence.action === 'wowsa' ? 'Log photo' : criticalCadence.action === 'feeding' ? 'Log feeding' : 'Complete',
-      intent:
-        criticalCadence.action === 'wowsa'
-          ? 'wowsa'
-          : criticalCadence.action === 'feeding'
-            ? 'feeding'
-            : 'checklist',
+      actionLabel: criticalCadence.action === 'feeding' ? 'Log feeding' : 'Complete',
+      intent: criticalCadence.action === 'feeding' ? 'feeding' : criticalCadence.action === 'timeline' ? 'timeline' : 'checklist',
       checklistItemId: criticalCadence.checklistItemId
     };
   }
@@ -314,19 +366,12 @@ export function getNextCriticalAction(mission: Mission, now = new Date()): Criti
       title:
         warningCadence.action === 'feeding'
           ? `Feeding in ${warningCadence.minutesUntil} min`
-          : warningCadence.action === 'wowsa'
-            ? `WOWSA photo in ${warningCadence.minutesUntil} min`
-            : warningCadence.label,
+          : warningCadence.label,
       detail: warningCadence.detail,
       severity: 'warning',
       dueAt: warningCadence.dueAt,
-      actionLabel: warningCadence.action === 'wowsa' ? 'Log photo' : warningCadence.action === 'feeding' ? 'Log feeding' : 'Complete',
-      intent:
-        warningCadence.action === 'wowsa'
-          ? 'wowsa'
-          : warningCadence.action === 'feeding'
-            ? 'feeding'
-            : 'checklist',
+      actionLabel: warningCadence.action === 'feeding' ? 'Log feeding' : 'Complete',
+      intent: warningCadence.action === 'feeding' ? 'feeding' : warningCadence.action === 'timeline' ? 'timeline' : 'checklist',
       checklistItemId: warningCadence.checklistItemId
     };
   }

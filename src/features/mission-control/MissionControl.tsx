@@ -80,8 +80,12 @@ export function MissionControl() {
   const readinessGroups = getReadinessGroups(mission, now);
   const cadenceItems = getOperationalCadence(mission, now).slice(0, 4);
   const checkpoints = mission.expeditionCheckpoints ?? [];
-  const wowsaPhotos = mission.wowsaPhotos ?? [];
   const inTemplateMode = mission.mode === 'template';
+  const feedingPlan = mission.feedingPlan ?? [];
+  const riskPlan = mission.riskPlan ?? { tideWindow: 'Tide window pending' };
+  const nextMilestone = [...mission.checklistItems]
+    .filter((item) => item.dueAt && !item.completedAt)
+    .sort((a, b) => new Date(a.dueAt!).getTime() - new Date(b.dueAt!).getTime())[0];
 
   return (
     <div className="page-grid">
@@ -119,13 +123,13 @@ export function MissionControl() {
           {criticalAction.intent === 'checklist' ? (
             <Link className="button primary" to={getMissionPath(mission.mode, 'checklists')}>
               <CheckCircle2 aria-hidden="true" />
-              Open checks
+              Open readiness
             </Link>
           ) : null}
-          {criticalAction.intent === 'wowsa' ? (
-            <Link className="button primary" to={getMissionPath(mission.mode, 'wowsa')}>
-              <CheckCircle2 aria-hidden="true" />
-              Open WOWSA
+          {criticalAction.intent === 'timeline' ? (
+            <Link className="button primary" to={getMissionPath(mission.mode, 'live-operations')}>
+              <Clock3 aria-hidden="true" />
+              Open timeline
             </Link>
           ) : null}
         </div>
@@ -177,11 +181,57 @@ export function MissionControl() {
         </section>
       ) : null}
 
+      <section className="panel span-12" aria-labelledby="overview-title">
+        <div className="panel-header">
+          <div>
+            <h3 className="panel-title" id="overview-title">
+              Swim Overview
+            </h3>
+            <p className="panel-subtitle">
+              {mission.session.swimmerName} · {mission.session.location} · {mission.session.plannedDistance}
+            </p>
+          </div>
+          <span className={`status-pill ${mission.status}`}>{mission.status}</span>
+        </div>
+        <div className="metric-grid">
+          <div className="metric">
+            <span className="metric-label">Start</span>
+            <span className="metric-value">{mission.session.plannedStartTime}</span>
+            <span className="metric-note">Logged {formatClock(mission.startedAt)}</span>
+          </div>
+          <div className="metric">
+            <span className="metric-label">Location</span>
+            <span className="metric-value">{mission.session.location}</span>
+            <span className="metric-note">{mission.position.label}</span>
+          </div>
+          <div className="metric">
+            <span className="metric-label">Weather / Tide</span>
+            <span className="metric-value">{mission.conditions.summary}</span>
+            <span className="metric-note">{riskPlan.tideWindow}</span>
+          </div>
+          <div className="metric">
+            <span className="metric-label">Support Crew</span>
+            <span className="metric-value">{activeCrew.length}/{mission.crew.length}</span>
+            <span className="metric-note">on duty now</span>
+          </div>
+          <div className="metric">
+            <span className="metric-label">Emergency Contacts</span>
+            <span className="metric-value">{mission.contacts.length}</span>
+            <span className="metric-note">{mission.contacts[0]?.channel ?? 'ready'}</span>
+          </div>
+          <div className="metric">
+            <span className="metric-label">Key Milestone</span>
+            <span className="metric-value">{nextMilestone?.dueAt ? formatClock(nextMilestone.dueAt) : 'Ready'}</span>
+            <span className="metric-note">{nextMilestone?.title ?? 'No timed items open'}</span>
+          </div>
+        </div>
+      </section>
+
       <section className="panel span-12" aria-labelledby="readiness-title">
         <div className="panel-header">
           <div>
             <h3 className="panel-title" id="readiness-title">
-              Today’s Readiness
+              Packing + Readiness
             </h3>
             <p className="panel-subtitle">
               {mission.session.swimmerName} · {mission.session.location} · {mission.session.plannedDistance}
@@ -193,7 +243,7 @@ export function MissionControl() {
               Setup
             </Link>
             <Link className="button" to={getMissionPath(mission.mode, 'checklists')}>
-              Open checks
+              Open readiness
             </Link>
           </div>
         </div>
@@ -254,9 +304,9 @@ export function MissionControl() {
             <span className="metric-note">route checkpoints</span>
           </div>
           <div className="metric">
-            <span className="metric-label">WOWSA Evidence</span>
-            <span className="metric-value">{wowsaPhotos.filter((photo) => photo.evidenceStatus === 'ready').length}/{wowsaPhotos.length}</span>
-            <span className="metric-note">image + GPS records</span>
+            <span className="metric-label">Feed Plan</span>
+            <span className="metric-value">{feedingPlan.length}</span>
+            <span className="metric-note">primary + backup options</span>
           </div>
         </div>
       </section>
@@ -265,7 +315,7 @@ export function MissionControl() {
         <div className="panel-header">
           <div>
             <h3 className="panel-title" id="conditions-title">
-              Live Conditions
+              Conditions + Risk
             </h3>
             <p className="panel-subtitle">{mission.conditions.summary}</p>
           </div>
@@ -289,6 +339,11 @@ export function MissionControl() {
             <span className="metric-value">{mission.conditions.swellFt} ft</span>
           </div>
         </div>
+        <div className="row-actions" style={{ marginTop: 16 }}>
+          <Link className="button" to={getMissionPath(mission.mode, 'conditions-risk')}>
+            Open risk
+          </Link>
+        </div>
       </section>
 
       <section className="panel span-12" aria-labelledby="cadence-title">
@@ -297,10 +352,10 @@ export function MissionControl() {
             <h3 className="panel-title" id="cadence-title">
               Operational Cadence
             </h3>
-            <p className="panel-subtitle">Feeding, certification photos, check-ins, and condition scans.</p>
+            <p className="panel-subtitle">Feeding, check-ins, condition scans, and readiness items.</p>
           </div>
           <Link className="button" to={getMissionPath(mission.mode, 'live-operations')}>
-            Swim tracker
+            Timeline
           </Link>
         </div>
         <ul className="cadence-list">

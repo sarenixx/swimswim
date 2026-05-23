@@ -2,7 +2,9 @@ import { createBrowserRouter, type RouteObject } from 'react-router-dom';
 import { AppShell } from './App';
 import { Checklists } from '../features/checklists/Checklists';
 import { CommunicationHub } from '../features/comms/CommunicationHub';
+import { ConditionsRisk } from '../features/conditions-risk/ConditionsRisk';
 import { CrewRoles } from '../features/crew/CrewRoles';
+import { FeedingPlan } from '../features/feeding/FeedingPlan';
 import { LiveOperations } from '../features/live-ops/LiveOperations';
 import { LogsData } from '../features/logs/LogsData';
 import { MissionControl } from '../features/mission-control/MissionControl';
@@ -16,6 +18,8 @@ const missionRoutes: RouteObject[] = [
   { path: 'setup', element: <MissionSetup /> },
   { path: 'checklists', element: <Checklists /> },
   { path: 'live-operations', element: <LiveOperations /> },
+  { path: 'feeding', element: <FeedingPlan /> },
+  { path: 'conditions-risk', element: <ConditionsRisk /> },
   { path: 'wowsa', element: <PartnersMedia /> },
   { path: 'safety', element: <SafetyEmergency /> },
   { path: 'communication', element: <CommunicationHub /> },

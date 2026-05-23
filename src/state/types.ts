@@ -13,6 +13,17 @@ export type CrewRole =
 export type ChecklistCategory = 'pre-swim' | 'in-swim' | 'post-swim' | 'mental-health';
 
 export type ChecklistStatus = 'pending' | 'done' | 'overdue';
+export type OperationalTimelineStatus = 'pending' | 'done';
+export type OperationalTimelineCategory =
+  | 'arrival'
+  | 'loading'
+  | 'warmup'
+  | 'launch'
+  | 'observer'
+  | 'swim'
+  | 'feeding'
+  | 'risk'
+  | 'recovery';
 
 export type TimelineEventType =
   | 'feeding'
@@ -56,6 +67,8 @@ export interface CrewMember {
   shiftStart: string;
   shiftEnd: string;
   responsibilities: string[];
+  backupId?: string;
+  backupPlan?: string;
 }
 
 export interface MissionSetupCrewAssignment {
@@ -104,6 +117,19 @@ export interface TimelineEvent {
   severity?: Severity;
 }
 
+export interface OperationalTimelineItem {
+  id: string;
+  category: OperationalTimelineCategory;
+  label: string;
+  at: string;
+  ownerId: string;
+  status: OperationalTimelineStatus;
+  notes: string;
+  contingencyWindowMinutes?: number;
+  completedAt?: string;
+  completedBy?: string;
+}
+
 export interface Alert {
   id: string;
   kind: AlertKind;
@@ -123,6 +149,25 @@ export interface EnvironmentalConditions {
   visibilityNm: number;
   swellFt: number;
   summary: string;
+}
+
+export interface FeedingPlanItem {
+  id: string;
+  label: string;
+  intervalMinutes: number;
+  calories: number;
+  hydrationOz: number;
+  electrolytesMg: number;
+  notes: string;
+  backup: boolean;
+}
+
+export interface RiskPlan {
+  tideWindow: string;
+  weatherSource: string;
+  abortConditions: string[];
+  medicalConcerns: string[];
+  mitigationNotes: string[];
 }
 
 export interface SwimmerConditionEntry {
@@ -261,8 +306,11 @@ export interface Mission {
   wowsaPhotoIntervalMinutes: number;
   lastFeedingAt: string;
   nextFeedingAt: string;
+  feedingPlan: FeedingPlanItem[];
+  riskPlan: RiskPlan;
   crew: CrewMember[];
   checklistItems: ChecklistItem[];
+  operationalTimeline: OperationalTimelineItem[];
   timeline: TimelineEvent[];
   alerts: Alert[];
   conditions: EnvironmentalConditions;

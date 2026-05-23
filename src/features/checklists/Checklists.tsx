@@ -53,8 +53,8 @@ export function Checklists() {
       <section className="panel span-12">
         <div className="panel-header">
           <div>
-            <h3 className="panel-title">Checklist Runs</h3>
-            <p className="panel-subtitle">Owner, due time, completion actor, and lateness are captured on every item.</p>
+            <h3 className="panel-title">Packing + Readiness</h3>
+            <p className="panel-subtitle">Gear, safety, nutrition, documents, crew supplies, and timed swim checks.</p>
           </div>
           <Check aria-hidden="true" />
         </div>

@@ -23,6 +23,8 @@ The first demonstrably useful release is a responsive progressive web app, which
 - [x] (2026-05-06 20:02Z) Completed an MVP convergence pass: Mission Control now surfaces readiness by domain and operational cadence, Checklists can filter by boat/swim/medical/wellness/media domains, and Live Operations can complete cadence work including WOWSA photo checkpoints.
 - [x] (2026-05-06 20:05Z) Completed a mobile stress pass for Mission Control: first-screen emergency triggers were added, phone tap targets were enlarged, and small-screen chrome was reduced so the crisis surface appears sooner.
 - [x] (2026-05-06 20:11Z) Recentered the product around its primary purpose: checklist completion, expedition GPS tracking, and WOWSA GPS photo evidence. Navigation now prioritizes Checklists, Swim Tracker, and WOWSA Evidence; Swim Tracker logs GPS checkpoints; WOWSA records include image file evidence, GPS, accuracy, timestamp, distance, and evidence status.
+- [x] (2026-05-23 21:55Z) Recentered the next-weekend release around the live operational MVP instead of the broader platform vision. Navigation now prioritizes Dashboard, Timeline, Crew Coordination, Feeding Plan, Conditions + Risk, Packing + Readiness, Safety, Setup, and Reports. Added focused Feeding Plan and Conditions + Risk screens, expanded Catherine seed data with nutrition, backup feeds, abort conditions, medical concerns, and packing/readiness items, and removed WOWSA photo cadence from the next critical action calculation.
+- [x] (2026-05-23 22:00Z) Strengthened the operational MVP with a planned swim timeline and crew backup coverage. Timeline now has arrival, loadout, observer brief, warmup, boat launch, swim start, feed handoff, observer sync, risk reassessment, and recovery standby items; pending timeline items appear in cadence and can be completed into the event log. Crew Coordination now shows on-duty coverage, backup owner, and backup plan per role.
 
 ## Surprises & Discoveries
 
@@ -34,6 +36,9 @@ The first demonstrably useful release is a responsive progressive web app, which
 
 - Observation: The first protected MVP is a single-page daily operations tool rather than a command center.
   Evidence: It has Overview, Boat Safety, Swim Safety, Medical, Wellness, Wildlife, WOWSA Photos, and Export tabs, with localStorage persistence, GPS capture, Open-Meteo weather/water lookups, mailto reports, and a 30-minute WOWSA photo timer.
+
+- Observation: The app had started to mix the live test swim with the later sellable-template/product vision.
+  Evidence: The 2026-05-23 scope correction identified next-weekend proof as "does this reduce chaos during Catherine's swim" and explicitly deferred AI features, account systems, monetization, advanced integrations, and reusable template extraction.
 
 ## Decision Log
 
@@ -53,6 +58,10 @@ The first demonstrably useful release is a responsive progressive web app, which
   Rationale: The asset is distinctive, already aligned to the expedition story, and provides a coherent brand palette for the initial product build.
   Date/Author: 2026-04-17 / GitHub Copilot
 
+- Decision: Treat the next release as a live operational MVP, not a SaaS/platform release.
+  Rationale: The immediate proof point is whether Catherine and crew can use the app during a real swim to reduce chaos, centralize operational information, and prevent missed details. Template extraction and productization should happen after observing what gets used.
+  Date/Author: 2026-05-23 / Codex
+
 ## Outcomes & Retrospective
 
 The first usable release is now implemented as a local-first React PWA. The largest remaining product gaps are real multi-device sync, live GPS/weather integrations, and production authentication/permissions; the current release uses seeded data and browser-local state to validate the operational workflows.
@@ -63,7 +72,11 @@ The convergence pass tightened the product direction further: the old MVP's dail
 
 The mobile stress pass made Mission Control more credible in an urgent phone scenario by placing Medical, Distress, and Abort triggers directly beneath the next critical action and simplifying small-screen layout density.
 
-The latest correction clarified that the app is primarily a checklist and expedition tracking system with WOWSA GPS-certified image evidence. The app now reflects that emphasis in its navigation, data model, report output, and home-screen metrics.
+The 2026-05-06 correction clarified that the app is primarily a checklist and expedition tracking system with WOWSA GPS-certified image evidence. The app reflected that emphasis in its navigation, data model, report output, and home-screen metrics.
+
+The 2026-05-23 correction narrowed the immediate release again: for Catherine's live swim, the highest-value surface is operational clarity, not certification/media evidence or reusable product infrastructure. The current app now leads with the live swim dashboard, timeline, crew coordination, feeding/nutrition plan, conditions/risk, and packing/readiness checklist. WOWSA and template workflows remain available for later extraction but no longer dominate the critical-action loop.
+
+The follow-up pass made the timeline and crew coordination modules more operationally real. Planned milestones are no longer passive text; they have owners, due times, contingency windows, completion state, offline-safe event logging, and test coverage. Crew cards now show phone numbers, responsibilities, active actor selection, backup owner, and backup plan.
 
 ## Context and Orientation
 

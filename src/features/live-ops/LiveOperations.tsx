@@ -1,8 +1,15 @@
-import { Activity, Camera, CheckCircle2, Clock3, HeartPulse, MapPin, RadioTower, Utensils } from 'lucide-react';
+import { Activity, CheckCircle2, Clock3, HeartPulse, MapPin, RadioTower, Utensils } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { getDevicePosition } from '../../lib/gps';
 import { roleLabels } from '../../state/seed';
-import { formatClock, getCrewLabel, getMinutesUntil, getOperationalCadence, type CadenceItem } from '../../state/selectors';
+import {
+  formatClock,
+  getCrewLabel,
+  getMinutesUntil,
+  getOperationalCadence,
+  getOperationalTimelineStatus,
+  type CadenceItem
+} from '../../state/selectors';
 import type { SwimmerConditionLevel, TimelineEventType } from '../../state/types';
 import { useMissionStore } from '../../state/useMissionStore';
 import { useNow } from '../../lib/useNow';
@@ -39,7 +46,7 @@ export function LiveOperations() {
   const logQuickAction = useMissionStore((state) => state.logQuickAction);
   const updateSwimmerCondition = useMissionStore((state) => state.updateSwimmerCondition);
   const completeChecklistItem = useMissionStore((state) => state.completeChecklistItem);
-  const addWowsaPhoto = useMissionStore((state) => state.addWowsaPhoto);
+  const completeOperationalTimelineItem = useMissionStore((state) => state.completeOperationalTimelineItem);
   const addExpeditionCheckpoint = useMissionStore((state) => state.addExpeditionCheckpoint);
 
   const filteredTimeline = useMemo(() => {
@@ -51,6 +58,7 @@ export function LiveOperations() {
   const minutesToFeeding = getMinutesUntil(mission.nextFeedingAt, now);
   const latestCondition = mission.swimmerConditions[0];
   const cadenceItems = getOperationalCadence(mission, now).slice(0, 6);
+  const plannedTimeline = [...(mission.operationalTimeline ?? [])].sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
 
   const handleCadenceAction = (item: CadenceItem) => {
     if (item.action === 'feeding') {
@@ -58,14 +66,8 @@ export function LiveOperations() {
       return;
     }
 
-    if (item.action === 'wowsa') {
-      addWowsaPhoto({
-        gps: mission.position.label,
-        distanceSwum: '',
-        notes: 'Logged from Live Operations cadence.',
-        hasPhoto: false,
-        actorId: activeActorId
-      });
+    if (item.timelineItemId) {
+      completeOperationalTimelineItem(item.timelineItemId, activeActorId);
       return;
     }
 
@@ -103,7 +105,7 @@ export function LiveOperations() {
       <section className="panel span-12">
         <div className="panel-header">
           <div>
-            <h3 className="panel-title">Expedition Track</h3>
+            <h3 className="panel-title">Swim Timeline</h3>
             <p className="panel-subtitle">{checkpoints.length} GPS checkpoints captured.</p>
           </div>
           <MapPin aria-hidden="true" />
@@ -157,8 +159,44 @@ export function LiveOperations() {
       <section className="panel span-12">
         <div className="panel-header">
           <div>
+            <h3 className="panel-title">Planned Swim Timeline</h3>
+            <p className="panel-subtitle">Arrival, launch, observer timing, feed windows, reassessment, and recovery.</p>
+          </div>
+          <Clock3 aria-hidden="true" />
+        </div>
+        <ul className="timeline-list">
+          {plannedTimeline.map((item) => {
+            const status = getOperationalTimelineStatus(item, now);
+            return (
+              <li className="timeline-item" key={item.id}>
+                <span className="timeline-time">{formatClock(item.at)}</span>
+                <div>
+                  <div className="timeline-summary">{item.label}</div>
+                  <div className="timeline-detail">
+                    {getCrewLabel(mission, item.ownerId)} · {item.notes}
+                    {item.contingencyWindowMinutes ? ` · ${item.contingencyWindowMinutes} min window` : ''}
+                  </div>
+                </div>
+                <div className="row-actions">
+                  <span className={`status-pill ${status}`}>{status}</span>
+                  {status !== 'done' ? (
+                    <button className="button" type="button" onClick={() => completeOperationalTimelineItem(item.id, activeActorId)}>
+                      <CheckCircle2 aria-hidden="true" />
+                      Complete
+                    </button>
+                  ) : null}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+
+      <section className="panel span-12">
+        <div className="panel-header">
+          <div>
             <h3 className="panel-title">Operational Cadence</h3>
-            <p className="panel-subtitle">Timed work from the command center, oldest due item first.</p>
+            <p className="panel-subtitle">Feeding, check-ins, condition scans, and readiness items.</p>
           </div>
           <Clock3 aria-hidden="true" />
         </div>
@@ -174,8 +212,8 @@ export function LiveOperations() {
               <div className="row-actions">
                 <span className={`severity-pill ${item.severity === 'normal' ? 'info' : item.severity}`}>{formatClock(item.dueAt)}</span>
                 <button className="button" type="button" onClick={() => handleCadenceAction(item)}>
-                  {item.action === 'wowsa' ? <Camera aria-hidden="true" /> : <CheckCircle2 aria-hidden="true" />}
-                  {item.action === 'wowsa' ? 'Photo logged' : 'Complete'}
+                  <CheckCircle2 aria-hidden="true" />
+                  Complete
                 </button>
               </div>
             </li>

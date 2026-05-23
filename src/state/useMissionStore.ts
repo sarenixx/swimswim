@@ -15,6 +15,7 @@ import type {
   MedicalVitals,
   Mission,
   MissionSetupInput,
+  OperationalTimelineItem,
   QuickLogKind,
   SwimmerConditionLevel,
   TimelineEvent,
@@ -35,6 +36,7 @@ export interface MissionStore {
   setSelectedRole: (role: CrewRole) => void;
   startMissionFromSetup: (input: MissionSetupInput) => void;
   completeChecklistItem: (itemId: string, actorId?: string) => void;
+  completeOperationalTimelineItem: (itemId: string, actorId?: string) => void;
   setChecklistOwner: (itemId: string, ownerId: string) => void;
   logEvent: (event: Omit<TimelineEvent, 'id' | 'at'> & { at?: string }) => void;
   logQuickAction: (kind: QuickLogKind, actorId?: string) => void;
@@ -112,6 +114,35 @@ const resetChecklistForStart = (items: ChecklistItem[], startAt: string): Checkl
     status: 'pending',
     dueAt: dueOffsets[item.id] !== undefined ? addMinutes(start, dueOffsets[item.id]).toISOString() : undefined
   }));
+};
+
+const resetOperationalTimelineForStart = (items: OperationalTimelineItem[], startAt: string, feedingIntervalMinutes: number): OperationalTimelineItem[] => {
+  const start = new Date(startAt);
+  const offsets: Record<string, number> = {
+    'op-arrival': -150,
+    'op-loadout': -105,
+    'op-observer-brief': -75,
+    'op-warmup': -45,
+    'op-boat-launch': -30,
+    'op-swim-start': 0,
+    'op-next-feed': feedingIntervalMinutes,
+    'op-observer-sync': 45,
+    'op-risk-window': 60,
+    'op-recovery-standby': 240
+  };
+  const alreadyDone = new Set(['op-arrival', 'op-loadout', 'op-observer-brief', 'op-warmup', 'op-boat-launch', 'op-swim-start']);
+
+  return items.map((item) => {
+    const at = addMinutes(start, offsets[item.id] ?? 0).toISOString();
+    const done = alreadyDone.has(item.id);
+    return {
+      ...item,
+      at,
+      status: done ? 'done' : 'pending',
+      completedAt: done ? at : undefined,
+      completedBy: done ? item.ownerId : undefined
+    };
+  });
 };
 
 const lateByMinutes = (dueAt: string | undefined, completedAt: string) => {
@@ -241,6 +272,11 @@ export function createLiveStateFromTemplate(templateMission: Mission, now = new 
     lastFeedingAt: startedAt,
     nextFeedingAt: addMinutes(now, templateMission.feedingIntervalMinutes).toISOString(),
     checklistItems: resetChecklistForStart(templateMission.checklistItems, startedAt),
+    operationalTimeline: resetOperationalTimelineForStart(
+      templateMission.operationalTimeline ?? [],
+      startedAt,
+      templateMission.feedingIntervalMinutes
+    ),
     timeline: [
       {
         id: makeId('event-template-duplicate', startedAt),
@@ -420,6 +456,11 @@ const createMissionStore = (storageName: string, seedBuilder: () => Mission): Mi
                 nextFeedingAt: addMinutes(start, feedingIntervalMinutes).toISOString(),
                 crew,
                 checklistItems: resetChecklistForStart(state.mission.checklistItems, startedAt),
+                operationalTimeline: resetOperationalTimelineForStart(
+                  state.mission.operationalTimeline ?? [],
+                  startedAt,
+                  feedingIntervalMinutes
+                ),
                 timeline: [startEvent],
                 alerts: [],
                 conditions: {
@@ -500,6 +541,50 @@ const createMissionStore = (storageName: string, seedBuilder: () => Mission): Mi
                 event
               ),
               offlineQueue: queueIfOffline(state.online, state.offlineQueue, 'complete-checklist-item', updatedItem, completedAt)
+            };
+          });
+        },
+
+        completeOperationalTimelineItem: (itemId, actorId) => {
+          const completedAt = new Date().toISOString();
+          const activeActorId = actorId ?? get().activeActorId;
+
+          set((state) => {
+            const item = (state.mission.operationalTimeline ?? []).find((candidate) => candidate.id === itemId);
+            if (!item || item.status === 'done') {
+              return state;
+            }
+
+            const lateMinutes = lateByMinutes(item.at, completedAt);
+            const updatedItem: OperationalTimelineItem = {
+              ...item,
+              status: 'done',
+              completedAt,
+              completedBy: activeActorId
+            };
+            const event: TimelineEvent = {
+              id: makeId('event-op-timeline', completedAt),
+              type: item.category === 'feeding' ? 'feeding' : item.category === 'risk' ? 'weather' : 'note',
+              at: completedAt,
+              actorId: activeActorId,
+              summary: 'Planned timeline item completed',
+              detail: item.label,
+              lateByMinutes: lateMinutes,
+              severity: lateMinutes ? 'warning' : 'info'
+            };
+
+            return {
+              ...state,
+              mission: appendTimeline(
+                {
+                  ...state.mission,
+                  operationalTimeline: (state.mission.operationalTimeline ?? []).map((candidate) =>
+                    candidate.id === itemId ? updatedItem : candidate
+                  )
+                },
+                event
+              ),
+              offlineQueue: queueIfOffline(state.online, state.offlineQueue, 'complete-operational-timeline-item', updatedItem, completedAt)
             };
           });
         },

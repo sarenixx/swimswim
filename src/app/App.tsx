@@ -128,9 +128,11 @@ export function AppShell() {
                 </button>
               </>
             ) : null}
-            <NavLink className="button" to={alternateDeliverable.to}>
-              {alternateDeliverable.label}
-            </NavLink>
+            {inTemplateMode ? (
+              <NavLink className="button" to={alternateDeliverable.to}>
+                {alternateDeliverable.label}
+              </NavLink>
+            ) : null}
             <span className={online ? 'sync-pill online' : 'sync-pill offline'}>
               {online ? 'Online' : `${offlineQueue.length} queued offline`}
             </span>

@@ -1,13 +1,13 @@
 import {
   Activity,
-  Camera,
   ClipboardCheck,
+  CloudSun,
   ContactRound,
   FileClock,
   MapPinned,
-  MessageSquare,
   Settings2,
-  ShieldAlert
+  ShieldAlert,
+  Utensils
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { MissionMode } from '../state/types';
@@ -29,14 +29,14 @@ export interface MissionNavItem {
 }
 
 const navBlueprint: MissionNavBlueprint[] = [
-  { segment: '', label: 'Expedition Home', shortLabel: 'Home', title: 'Expedition Home', icon: Activity },
-  { segment: 'setup', label: 'Mission Setup', shortLabel: 'Setup', title: 'Mission Setup', icon: Settings2 },
-  { segment: 'checklists', label: 'Checklists', shortLabel: 'Checks', title: 'Checklists', icon: ClipboardCheck },
-  { segment: 'live-operations', label: 'Swim Tracker', shortLabel: 'Track', title: 'Swim Tracker', icon: MapPinned },
-  { segment: 'wowsa', label: 'WOWSA Evidence', shortLabel: 'WOWSA', title: 'WOWSA Evidence', icon: Camera },
+  { segment: '', label: 'Dashboard', shortLabel: 'Home', title: 'Swim Overview Dashboard', icon: Activity },
+  { segment: 'live-operations', label: 'Timeline', shortLabel: 'Timeline', title: 'Swim Timeline', icon: MapPinned },
+  { segment: 'crew', label: 'Crew Coordination', shortLabel: 'Crew', title: 'Crew Coordination', icon: ContactRound },
+  { segment: 'feeding', label: 'Feeding Plan', shortLabel: 'Feed', title: 'Feeding / Nutrition Plan', icon: Utensils },
+  { segment: 'conditions-risk', label: 'Conditions + Risk', shortLabel: 'Risk', title: 'Conditions + Risk', icon: CloudSun },
+  { segment: 'checklists', label: 'Packing + Readiness', shortLabel: 'Pack', title: 'Packing + Readiness', icon: ClipboardCheck },
   { segment: 'safety', label: 'Safety & Emergency', shortLabel: 'Safety', title: 'Safety & Emergency', icon: ShieldAlert },
-  { segment: 'communication', label: 'Communication Hub', shortLabel: 'Comms', title: 'Communication Hub', icon: MessageSquare },
-  { segment: 'crew', label: 'Crew & Roles', shortLabel: 'Crew', title: 'Crew & Roles', icon: ContactRound },
+  { segment: 'setup', label: 'Mission Setup', shortLabel: 'Setup', title: 'Mission Setup', icon: Settings2 },
   { segment: 'logs', label: 'Reports & Data', shortLabel: 'Reports', title: 'Reports & Data', icon: FileClock }
 ];
 
@@ -65,7 +65,7 @@ export function buildMissionNavItems(mode: MissionMode): MissionNavItem[] {
 }
 
 export function getPrimaryMobileNavItems(navItems: MissionNavItem[]): MissionNavItem[] {
-  return [navItems[0], navItems[2], navItems[3], navItems[4]];
+  return [navItems[0], navItems[1], navItems[3], navItems[5]];
 }
 
 export function getDeliverableTitle(mode: MissionMode): string {

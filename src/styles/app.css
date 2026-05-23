@@ -448,6 +448,7 @@ a {
   color: var(--color-night);
   font-size: 1.25rem;
   font-weight: 900;
+  overflow-wrap: anywhere;
 }
 
 .metric-note {
@@ -853,6 +854,12 @@ input[type="range"] {
   gap: var(--space-3);
 }
 
+.crew-coverage-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: var(--space-3);
+}
+
 .contact-card,
 .crew-card {
   display: grid;
@@ -861,6 +868,74 @@ input[type="range"] {
   background: #f9fbfd;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
+}
+
+.crew-coverage-card {
+  display: grid;
+  gap: var(--space-2);
+  min-height: 132px;
+  padding: var(--space-3);
+  background: #f9fbfd;
+  border: 1px solid var(--color-line);
+  border-left: 5px solid var(--color-ocean);
+  border-radius: var(--radius-card);
+}
+
+.feed-plan-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-3);
+}
+
+.feed-plan-card {
+  display: grid;
+  gap: var(--space-3);
+  min-height: 178px;
+  padding: var(--space-4);
+  background: #f9fbfd;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+}
+
+.feed-stat-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.feed-stat-row span,
+.risk-callout {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 9px;
+  color: var(--color-ocean-deep);
+  background: #e3f3fb;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.feed-stat-row svg,
+.risk-callout svg {
+  width: 14px;
+  height: 14px;
+}
+
+.risk-callout {
+  width: 100%;
+  min-height: 48px;
+  justify-content: flex-start;
+  color: var(--color-ink);
+  background: #f9fbfd;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  font-size: 0.9rem;
+}
+
+.risk-contact-grid {
+  margin-top: var(--space-3);
 }
 
 .responsibility-list {

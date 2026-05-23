@@ -5,8 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
+    "dev:ensure": "bash .devcontainer/post-attach.sh",
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 0.0.0.0",
+    "share": "bash scripts/start-preview-share.sh",
+    "status": "bash scripts/session-status.sh",
     "test": "vitest run",
     "test:watch": "vitest"
   },

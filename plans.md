@@ -25,6 +25,7 @@ The first demonstrably useful release is a responsive progressive web app, which
 - [x] (2026-05-06 20:11Z) Recentered the product around its primary purpose: checklist completion, expedition GPS tracking, and WOWSA GPS photo evidence. Navigation now prioritizes Checklists, Swim Tracker, and WOWSA Evidence; Swim Tracker logs GPS checkpoints; WOWSA records include image file evidence, GPS, accuracy, timestamp, distance, and evidence status.
 - [x] (2026-05-23 21:55Z) Recentered the next-weekend release around the live operational MVP instead of the broader platform vision. Navigation now prioritizes Dashboard, Timeline, Crew Coordination, Feeding Plan, Conditions + Risk, Packing + Readiness, Safety, Setup, and Reports. Added focused Feeding Plan and Conditions + Risk screens, expanded Catherine seed data with nutrition, backup feeds, abort conditions, medical concerns, and packing/readiness items, and removed WOWSA photo cadence from the next critical action calculation.
 - [x] (2026-05-23 22:00Z) Strengthened the operational MVP with a planned swim timeline and crew backup coverage. Timeline now has arrival, loadout, observer brief, warmup, boat launch, swim start, feed handoff, observer sync, risk reassessment, and recovery standby items; pending timeline items appear in cadence and can be completed into the event log. Crew Coordination now shows on-duty coverage, backup owner, and backup plan per role.
+- [x] (2026-05-23 22:10Z) Simplified Catherine's live dashboard into a calm editable MVP demo. Mission Control now leads with the current action plus five editable cards: Swim Overview, Timeline, Crew, Feed Plan, and Safety Plan. Each card supports edit, save, cancel, and reset, while secondary operational detail sits behind a More Planning Details disclosure.
 
 ## Surprises & Discoveries
 
@@ -39,6 +40,9 @@ The first demonstrably useful release is a responsive progressive web app, which
 
 - Observation: The app had started to mix the live test swim with the later sellable-template/product vision.
   Evidence: The 2026-05-23 scope correction identified next-weekend proof as "does this reduce chaos during Catherine's swim" and explicitly deferred AI features, account systems, monetization, advanced integrations, and reusable template extraction.
+
+- Observation: Catherine's review needs to prove editability and calm control more than information volume.
+  Evidence: The requested demo framing was "this is yours, and we can shape it together," so the live dashboard now defaults to five obvious editable sections instead of exposing the full operations binder at once.
 
 ## Decision Log
 
@@ -62,6 +66,10 @@ The first demonstrably useful release is a responsive progressive web app, which
   Rationale: The immediate proof point is whether Catherine and crew can use the app during a real swim to reduce chaos, centralize operational information, and prevent missed details. Template extraction and productization should happen after observing what gets used.
   Date/Author: 2026-05-23 / Codex
 
+- Decision: Make the Catherine dashboard a live working-session tool before making it a complete command center.
+  Rationale: The demo needs Catherine to see that the plan can be reviewed and edited with Sarah in real time. Calm hierarchy and visible edit controls reduce cognitive load better than showing every available planning category on the first screen.
+  Date/Author: 2026-05-23 / Codex
+
 ## Outcomes & Retrospective
 
 The first usable release is now implemented as a local-first React PWA. The largest remaining product gaps are real multi-device sync, live GPS/weather integrations, and production authentication/permissions; the current release uses seeded data and browser-local state to validate the operational workflows.
@@ -77,6 +85,8 @@ The 2026-05-06 correction clarified that the app is primarily a checklist and ex
 The 2026-05-23 correction narrowed the immediate release again: for Catherine's live swim, the highest-value surface is operational clarity, not certification/media evidence or reusable product infrastructure. The current app now leads with the live swim dashboard, timeline, crew coordination, feeding/nutrition plan, conditions/risk, and packing/readiness checklist. WOWSA and template workflows remain available for later extraction but no longer dominate the critical-action loop.
 
 The follow-up pass made the timeline and crew coordination modules more operationally real. Planned milestones are no longer passive text; they have owners, due times, contingency windows, completion state, offline-safe event logging, and test coverage. Crew cards now show phone numbers, responsibilities, active actor selection, backup owner, and backup plan.
+
+The Catherine demo pass deliberately reduced the first dashboard surface. The live route now acts as a collaborative editing session with five primary cards and explicit edit/save/cancel/reset controls, while retaining the richer operational state behind collapsed planning details and deeper routes.
 
 ## Context and Orientation
 

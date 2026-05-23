@@ -8,10 +8,12 @@ import type {
   Alert,
   ChecklistItem,
   CommunicationMessage,
+  CrewMember,
   CrewRole,
   DailySessionInfo,
   EmergencyKind,
   ExpeditionCheckpoint,
+  FeedingPlanItem,
   MedicalVitals,
   Mission,
   MissionSetupInput,
@@ -24,6 +26,26 @@ import type {
   WowsaPhotoEntry
 } from './types';
 
+export interface MissionOverviewEdit {
+  name: string;
+  swimmerName: string;
+  location: string;
+  plannedDistance: string;
+  plannedStartTime: string;
+  status: Mission['status'];
+}
+
+export interface SafetyPlanEdit {
+  emergencyContactName: string;
+  emergencyContactRole: string;
+  emergencyContactPhone: string;
+  emergencyContactChannel: string;
+  tideWindow: string;
+  weatherSource: string;
+  abortConditionsText: string;
+  medicalConcernsText: string;
+}
+
 export interface MissionStore {
   mission: Mission;
   activeActorId: string;
@@ -35,6 +57,19 @@ export interface MissionStore {
   setActiveActor: (actorId: string) => void;
   setSelectedRole: (role: CrewRole) => void;
   startMissionFromSetup: (input: MissionSetupInput) => void;
+  updateMissionOverview: (input: MissionOverviewEdit) => void;
+  resetMissionOverview: () => void;
+  updateOperationalTimelineItemDetails: (itemId: string, input: Pick<OperationalTimelineItem, 'label' | 'at' | 'ownerId' | 'notes'>) => void;
+  resetOperationalTimeline: () => void;
+  updateCrewMemberDetails: (memberId: string, input: Pick<CrewMember, 'name' | 'phone' | 'role' | 'backupPlan'> & { responsibilityText: string }) => void;
+  addCrewMember: () => void;
+  resetCrew: () => void;
+  updateFeedingPlanItemDetails: (itemId: string, input: Pick<FeedingPlanItem, 'label' | 'calories' | 'hydrationOz' | 'electrolytesMg' | 'notes' | 'backup'>) => void;
+  addFeedingPlanItem: () => void;
+  updateFeedingInterval: (minutes: number) => void;
+  resetFeedingPlan: () => void;
+  updateSafetyPlan: (input: SafetyPlanEdit) => void;
+  resetSafetyPlan: () => void;
   completeChecklistItem: (itemId: string, actorId?: string) => void;
   completeOperationalTimelineItem: (itemId: string, actorId?: string) => void;
   setChecklistOwner: (itemId: string, ownerId: string) => void;
@@ -239,6 +274,12 @@ const queueIfOffline = (
   payload: unknown,
   at: string
 ) => (online ? offlineQueue : [...offlineQueue, createOfflineQueueEntry(action, payload, at)]);
+
+const linesToList = (value: string) =>
+  value
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
 
 export function createLiveStateFromTemplate(templateMission: Mission, now = new Date()) {
   const startedAt = now.toISOString();
@@ -499,6 +540,276 @@ const createMissionStore = (storageName: string, seedBuilder: () => Mission): Mi
               offlineQueue: queueIfOffline(state.online, state.offlineQueue, 'start-mission-from-setup', input, startedAt)
             };
           });
+        },
+
+        updateMissionOverview: (input) => {
+          set((state) => ({
+            ...state,
+            mission: {
+              ...state.mission,
+              name: input.name.trim() || state.mission.name,
+              status: input.status,
+              session: {
+                ...state.mission.session,
+                swimmerName: input.swimmerName.trim(),
+                location: input.location.trim(),
+                plannedDistance: input.plannedDistance.trim(),
+                plannedStartTime: input.plannedStartTime.trim()
+              }
+            }
+          }));
+        },
+
+        resetMissionOverview: () => {
+          const seed = seedBuilder();
+          set((state) => ({
+            ...state,
+            mission: {
+              ...state.mission,
+              name: seed.name,
+              status: seed.status,
+              session: seed.session,
+              position: seed.position
+            }
+          }));
+        },
+
+        updateOperationalTimelineItemDetails: (itemId, input) => {
+          set((state) => ({
+            ...state,
+            mission: {
+              ...state.mission,
+              operationalTimeline: (state.mission.operationalTimeline ?? []).map((item) =>
+                item.id === itemId
+                  ? {
+                      ...item,
+                      label: input.label.trim() || item.label,
+                      at: input.at,
+                      ownerId: input.ownerId,
+                      notes: input.notes.trim()
+                    }
+                  : item
+              )
+            }
+          }));
+        },
+
+        resetOperationalTimeline: () => {
+          const seed = seedBuilder();
+          set((state) => ({
+            ...state,
+            mission: {
+              ...state.mission,
+              operationalTimeline: seed.operationalTimeline
+            }
+          }));
+        },
+
+        updateCrewMemberDetails: (memberId, input) => {
+          set((state) => ({
+            ...state,
+            mission: {
+              ...state.mission,
+              crew: state.mission.crew.some((member) => member.id === memberId)
+                ? state.mission.crew.map((member) =>
+                    member.id === memberId
+                      ? {
+                          ...member,
+                          name: input.name.trim() || member.name,
+                          phone: input.phone.trim(),
+                          role: input.role,
+                          responsibilities: linesToList(input.responsibilityText),
+                          backupPlan: input.backupPlan?.trim() ?? ''
+                        }
+                      : member
+                  )
+                : [
+                    ...state.mission.crew,
+                    {
+                      id: memberId,
+                      name: input.name.trim() || 'New crew member',
+                      phone: input.phone.trim(),
+                      role: input.role,
+                      shiftStart: state.mission.startedAt,
+                      shiftEnd: addHours(new Date(state.mission.startedAt), 4).toISOString(),
+                      responsibilities: linesToList(input.responsibilityText),
+                      backupPlan: input.backupPlan?.trim() ?? ''
+                    }
+                  ]
+            }
+          }));
+        },
+
+        addCrewMember: () => {
+          const at = new Date().toISOString();
+          set((state) => ({
+            ...state,
+            mission: {
+              ...state.mission,
+              crew: [
+                ...state.mission.crew,
+                {
+                  id: makeId('crew-custom', at),
+                  name: 'New crew member',
+                  role: 'safety',
+                  phone: '',
+                  shiftStart: state.mission.startedAt,
+                  shiftEnd: addHours(new Date(state.mission.startedAt), 4).toISOString(),
+                  responsibilities: ['Confirm responsibility'],
+                  backupPlan: 'Confirm backup owner during planning session.'
+                }
+              ]
+            }
+          }));
+        },
+
+        resetCrew: () => {
+          const seed = seedBuilder();
+          const captain = getCaptain(seed);
+          set((state) => ({
+            ...state,
+            activeActorId: captain?.id ?? state.activeActorId,
+            selectedRole: captain?.role ?? state.selectedRole,
+            mission: {
+              ...state.mission,
+              crew: seed.crew,
+              contacts: seed.contacts
+            }
+          }));
+        },
+
+        updateFeedingPlanItemDetails: (itemId, input) => {
+          set((state) => ({
+            ...state,
+            mission: {
+              ...state.mission,
+              feedingPlan: (state.mission.feedingPlan ?? []).some((item) => item.id === itemId)
+                ? (state.mission.feedingPlan ?? []).map((item) =>
+                    item.id === itemId
+                      ? {
+                          ...item,
+                          label: input.label.trim() || item.label,
+                          calories: input.calories,
+                          hydrationOz: input.hydrationOz,
+                          electrolytesMg: input.electrolytesMg,
+                          notes: input.notes.trim(),
+                          backup: input.backup
+                        }
+                      : item
+                  )
+                : [
+                    ...(state.mission.feedingPlan ?? []),
+                    {
+                      id: itemId,
+                      label: input.label.trim() || 'New feed option',
+                      intervalMinutes: state.mission.feedingIntervalMinutes,
+                      calories: input.calories,
+                      hydrationOz: input.hydrationOz,
+                      electrolytesMg: input.electrolytesMg,
+                      notes: input.notes.trim(),
+                      backup: input.backup
+                    }
+                  ]
+            }
+          }));
+        },
+
+        addFeedingPlanItem: () => {
+          const at = new Date().toISOString();
+          set((state) => ({
+            ...state,
+            mission: {
+              ...state.mission,
+              feedingPlan: [
+                ...(state.mission.feedingPlan ?? []),
+                {
+                  id: makeId('feed-custom', at),
+                  label: 'New feed option',
+                  intervalMinutes: state.mission.feedingIntervalMinutes,
+                  calories: 0,
+                  hydrationOz: 0,
+                  electrolytesMg: 0,
+                  notes: 'Add prep and handoff notes.',
+                  backup: true
+                }
+              ]
+            }
+          }));
+        },
+
+        updateFeedingInterval: (minutes) => {
+          const interval = clampInterval(minutes, get().mission.feedingIntervalMinutes);
+          set((state) => ({
+            ...state,
+            mission: {
+              ...state.mission,
+              feedingIntervalMinutes: interval,
+              nextFeedingAt: addMinutes(new Date(state.mission.lastFeedingAt), interval).toISOString(),
+              feedingPlan: (state.mission.feedingPlan ?? []).map((item) => ({ ...item, intervalMinutes: item.backup ? item.intervalMinutes : interval }))
+            }
+          }));
+        },
+
+        resetFeedingPlan: () => {
+          const seed = seedBuilder();
+          set((state) => ({
+            ...state,
+            mission: {
+              ...state.mission,
+              feedingIntervalMinutes: seed.feedingIntervalMinutes,
+              lastFeedingAt: seed.lastFeedingAt,
+              nextFeedingAt: seed.nextFeedingAt,
+              feedingPlan: seed.feedingPlan
+            }
+          }));
+        },
+
+        updateSafetyPlan: (input) => {
+          set((state) => {
+            const [primaryContact, ...restContacts] = state.mission.contacts;
+            return {
+              ...state,
+              mission: {
+                ...state.mission,
+                contacts: [
+                  {
+                    ...(primaryContact ?? {
+                      id: 'contact-primary',
+                      name: '',
+                      role: '',
+                      phone: '',
+                      channel: ''
+                    }),
+                    name: input.emergencyContactName.trim(),
+                    role: input.emergencyContactRole.trim(),
+                    phone: input.emergencyContactPhone.trim(),
+                    channel: input.emergencyContactChannel.trim()
+                  },
+                  ...restContacts
+                ],
+                riskPlan: {
+                  ...state.mission.riskPlan,
+                  tideWindow: input.tideWindow.trim(),
+                  weatherSource: input.weatherSource.trim(),
+                  abortConditions: linesToList(input.abortConditionsText),
+                  medicalConcerns: linesToList(input.medicalConcernsText)
+                }
+              }
+            };
+          });
+        },
+
+        resetSafetyPlan: () => {
+          const seed = seedBuilder();
+          set((state) => ({
+            ...state,
+            mission: {
+              ...state.mission,
+              contacts: seed.contacts,
+              riskPlan: seed.riskPlan,
+              conditions: seed.conditions
+            }
+          }));
         },
 
         completeChecklistItem: (itemId, actorId) => {

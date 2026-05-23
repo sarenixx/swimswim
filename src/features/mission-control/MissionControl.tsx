@@ -1,66 +1,190 @@
 import {
   AlertTriangle,
-  Ambulance,
   Ban,
-  CheckCircle2,
+  CalendarClock,
+  ChevronDown,
   Clock3,
-  Compass,
-  Droplets,
-  Flag,
+  ContactRound,
   HeartPulse,
+  Pencil,
+  Plus,
   Radio,
-  Route,
-  Settings2,
-  ShieldCheck,
-  Siren,
-  Thermometer,
-  Utensils
+  RotateCcw,
+  Save,
+  ShieldAlert,
+  Utensils,
+  X
 } from 'lucide-react';
+import { useState } from 'react';
+import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { getMissionPath } from '../../app/missionNavigation';
 import { roleLabels } from '../../state/seed';
 import {
   formatClock,
-  formatRelative,
   getActiveAlerts,
   getActiveCrew,
-  getActiveProtocol,
   getCrewLabel,
   getElapsedLabel,
   getMinutesUntil,
   getNextCriticalAction,
   getOperationalCadence,
-  getReadinessGroups,
   getRecentTimeline
 } from '../../state/selectors';
-import type { EmergencyKind, QuickLogKind } from '../../state/types';
+import type { CrewRole, EmergencyKind, Mission, MissionStatus, QuickLogKind } from '../../state/types';
 import { useMissionStore } from '../../state/useMissionStore';
 import { useNow } from '../../lib/useNow';
+
+type EditableSection = 'overview' | 'timeline' | 'crew' | 'feeding' | 'safety';
+
+interface OverviewDraft {
+  name: string;
+  swimmerName: string;
+  location: string;
+  plannedDistance: string;
+  plannedStartTime: string;
+  status: MissionStatus;
+}
+
+interface TimelineDraft {
+  id: string;
+  label: string;
+  at: string;
+  ownerId: string;
+  notes: string;
+}
+
+interface CrewDraft {
+  id: string;
+  name: string;
+  role: CrewRole;
+  phone: string;
+  responsibilityText: string;
+  backupPlan: string;
+}
+
+interface FeedDraft {
+  id: string;
+  label: string;
+  calories: string;
+  hydrationOz: string;
+  electrolytesMg: string;
+  notes: string;
+  backup: boolean;
+}
+
+interface SafetyDraft {
+  emergencyContactName: string;
+  emergencyContactRole: string;
+  emergencyContactPhone: string;
+  emergencyContactChannel: string;
+  tideWindow: string;
+  weatherSource: string;
+  abortConditionsText: string;
+  medicalConcernsText: string;
+}
 
 const quickActions: Array<{
   kind: QuickLogKind;
   label: string;
-  icon: typeof Utensils;
-  tone?: 'warning';
 }> = [
-  { kind: 'feeding-completed', label: 'Feeding completed', icon: Utensils },
-  { kind: 'fatigue-observed', label: 'Fatigue observed', icon: HeartPulse, tone: 'warning' },
-  { kind: 'course-adjustment', label: 'Course adjustment', icon: Route },
-  { kind: 'weather-shift', label: 'Weather shift', icon: Thermometer, tone: 'warning' },
-  { kind: 'shift-handover', label: 'Shift handover', icon: Flag },
-  { kind: 'check-in-confirmed', label: 'Check-in confirmed', icon: CheckCircle2 }
+  { kind: 'feeding-completed', label: 'Feeding completed' },
+  { kind: 'fatigue-observed', label: 'Fatigue observed' },
+  { kind: 'weather-shift', label: 'Weather shift' },
+  { kind: 'check-in-confirmed', label: 'Check-in confirmed' }
 ];
 
 const emergencyActions: Array<{
   kind: EmergencyKind;
   label: string;
-  icon: typeof Siren;
   tone: 'medical' | 'distress' | 'abort';
 }> = [
-  { kind: 'medical', label: 'Medical', icon: Ambulance, tone: 'medical' },
-  { kind: 'distress', label: 'Distress', icon: Siren, tone: 'distress' },
-  { kind: 'abort', label: 'Abort', icon: Ban, tone: 'abort' }
+  { kind: 'medical', label: 'Medical', tone: 'medical' },
+  { kind: 'distress', label: 'Distress', tone: 'distress' },
+  { kind: 'abort', label: 'Abort', tone: 'abort' }
 ];
+
+const missionStatuses: MissionStatus[] = ['preparing', 'active', 'paused', 'completed', 'aborted'];
+const crewRoles: CrewRole[] = ['captain', 'safety', 'medical', 'kayak-1', 'kayak-2', 'boat', 'media'];
+
+const toDateTimeLocal = (isoTime: string) => {
+  const date = new Date(isoTime);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+};
+
+const fromDateTimeLocal = (value: string) => {
+  const date = value ? new Date(value) : new Date();
+  return Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
+};
+
+const numberFromDraft = (value: string) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const overviewDraftFromMission = (mission: Mission): OverviewDraft => ({
+  name: mission.name,
+  swimmerName: mission.session.swimmerName,
+  location: mission.session.location,
+  plannedDistance: mission.session.plannedDistance,
+  plannedStartTime: mission.session.plannedStartTime,
+  status: mission.status
+});
+
+const timelineDraftFromMission = (mission: Mission): TimelineDraft[] =>
+  [...(mission.operationalTimeline ?? [])]
+    .sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())
+    .map((item) => ({
+      id: item.id,
+      label: item.label,
+      at: toDateTimeLocal(item.at),
+      ownerId: item.ownerId,
+      notes: item.notes
+    }));
+
+const crewDraftFromMission = (mission: Mission): CrewDraft[] =>
+  mission.crew.map((member) => ({
+    id: member.id,
+    name: member.name,
+    role: member.role,
+    phone: member.phone,
+    responsibilityText: member.responsibilities.join('\n'),
+    backupPlan: member.backupPlan ?? ''
+  }));
+
+const feedDraftFromMission = (mission: Mission): FeedDraft[] =>
+  (mission.feedingPlan ?? []).map((item) => ({
+    id: item.id,
+    label: item.label,
+    calories: String(item.calories),
+    hydrationOz: String(item.hydrationOz),
+    electrolytesMg: String(item.electrolytesMg),
+    notes: item.notes,
+    backup: item.backup
+  }));
+
+const safetyDraftFromMission = (mission: Mission): SafetyDraft => {
+  const primaryContact = mission.contacts[0];
+  return {
+    emergencyContactName: primaryContact?.name ?? '',
+    emergencyContactRole: primaryContact?.role ?? '',
+    emergencyContactPhone: primaryContact?.phone ?? '',
+    emergencyContactChannel: primaryContact?.channel ?? '',
+    tideWindow: mission.riskPlan?.tideWindow ?? '',
+    weatherSource: mission.riskPlan?.weatherSource ?? '',
+    abortConditionsText: (mission.riskPlan?.abortConditions ?? []).join('\n'),
+    medicalConcernsText: (mission.riskPlan?.medicalConcerns ?? []).join('\n')
+  };
+};
+
+function formatUpdateTime(isoTime?: string) {
+  return isoTime ? `Updated ${formatClock(isoTime)}` : 'Not edited this session';
+}
 
 export function MissionControl() {
   const now = useNow();
@@ -68,30 +192,185 @@ export function MissionControl() {
   const activeActorId = useMissionStore((state) => state.activeActorId);
   const logQuickAction = useMissionStore((state) => state.logQuickAction);
   const triggerEmergency = useMissionStore((state) => state.triggerEmergency);
-  const acknowledgeAlert = useMissionStore((state) => state.acknowledgeAlert);
-  const resolveAlert = useMissionStore((state) => state.resolveAlert);
+  const updateMissionOverview = useMissionStore((state) => state.updateMissionOverview);
+  const resetMissionOverview = useMissionStore((state) => state.resetMissionOverview);
+  const updateOperationalTimelineItemDetails = useMissionStore((state) => state.updateOperationalTimelineItemDetails);
+  const resetOperationalTimeline = useMissionStore((state) => state.resetOperationalTimeline);
+  const updateCrewMemberDetails = useMissionStore((state) => state.updateCrewMemberDetails);
+  const resetCrew = useMissionStore((state) => state.resetCrew);
+  const updateFeedingPlanItemDetails = useMissionStore((state) => state.updateFeedingPlanItemDetails);
+  const updateFeedingInterval = useMissionStore((state) => state.updateFeedingInterval);
+  const resetFeedingPlan = useMissionStore((state) => state.resetFeedingPlan);
+  const updateSafetyPlan = useMissionStore((state) => state.updateSafetyPlan);
+  const resetSafetyPlan = useMissionStore((state) => state.resetSafetyPlan);
   const criticalAction = getNextCriticalAction(mission, now);
-  const activeAlerts = getActiveAlerts(mission);
   const activeCrew = getActiveCrew(mission, now);
-  const recentTimeline = getRecentTimeline(mission, 6);
-  const activeProtocol = getActiveProtocol(mission);
+  const activeAlerts = getActiveAlerts(mission);
+  const recentTimeline = getRecentTimeline(mission, 5);
+  const cadenceItems = getOperationalCadence(mission, now).slice(0, 5);
   const minutesToFeeding = getMinutesUntil(mission.nextFeedingAt, now);
-  const latestCondition = mission.swimmerConditions[0];
-  const readinessGroups = getReadinessGroups(mission, now);
-  const cadenceItems = getOperationalCadence(mission, now).slice(0, 4);
-  const checkpoints = mission.expeditionCheckpoints ?? [];
-  const inTemplateMode = mission.mode === 'template';
-  const feedingPlan = mission.feedingPlan ?? [];
-  const riskPlan = mission.riskPlan ?? { tideWindow: 'Tide window pending' };
-  const nextMilestone = [...mission.checklistItems]
-    .filter((item) => item.dueAt && !item.completedAt)
-    .sort((a, b) => new Date(a.dueAt!).getTime() - new Date(b.dueAt!).getTime())[0];
+  const nextTimelineItems = [...(mission.operationalTimeline ?? [])]
+    .filter((item) => item.status !== 'done')
+    .sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())
+    .slice(0, 4);
+  const primaryFeed = (mission.feedingPlan ?? []).find((item) => !item.backup) ?? mission.feedingPlan?.[0];
+  const primaryContact = mission.contacts[0];
+  const primaryAbortCriteria = mission.riskPlan?.abortConditions?.slice(0, 3) ?? [];
+
+  const [editing, setEditing] = useState<EditableSection | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Partial<Record<EditableSection, string>>>({});
+  const [overviewDraft, setOverviewDraft] = useState<OverviewDraft>(() => overviewDraftFromMission(mission));
+  const [timelineDraft, setTimelineDraft] = useState<TimelineDraft[]>(() => timelineDraftFromMission(mission));
+  const [crewDraft, setCrewDraft] = useState<CrewDraft[]>(() => crewDraftFromMission(mission));
+  const [feedIntervalDraft, setFeedIntervalDraft] = useState(String(mission.feedingIntervalMinutes));
+  const [feedDraft, setFeedDraft] = useState<FeedDraft[]>(() => feedDraftFromMission(mission));
+  const [safetyDraft, setSafetyDraft] = useState<SafetyDraft>(() => safetyDraftFromMission(mission));
+
+  const touch = (section: EditableSection) => {
+    setLastUpdated((current) => ({ ...current, [section]: new Date().toISOString() }));
+  };
+
+  const beginEdit = (section: EditableSection) => {
+    if (section === 'overview') {
+      setOverviewDraft(overviewDraftFromMission(mission));
+    }
+
+    if (section === 'timeline') {
+      setTimelineDraft(timelineDraftFromMission(mission));
+    }
+
+    if (section === 'crew') {
+      setCrewDraft(crewDraftFromMission(mission));
+    }
+
+    if (section === 'feeding') {
+      setFeedIntervalDraft(String(mission.feedingIntervalMinutes));
+      setFeedDraft(feedDraftFromMission(mission));
+    }
+
+    if (section === 'safety') {
+      setSafetyDraft(safetyDraftFromMission(mission));
+    }
+
+    setEditing(section);
+  };
+
+  const cancelEdit = () => setEditing(null);
+
+  const saveOverview = () => {
+    updateMissionOverview(overviewDraft);
+    touch('overview');
+    setEditing(null);
+  };
+
+  const saveTimeline = () => {
+    timelineDraft.forEach((item) =>
+      updateOperationalTimelineItemDetails(item.id, {
+        label: item.label,
+        at: fromDateTimeLocal(item.at),
+        ownerId: item.ownerId,
+        notes: item.notes
+      })
+    );
+    touch('timeline');
+    setEditing(null);
+  };
+
+  const saveCrew = () => {
+    crewDraft.forEach((member) =>
+      updateCrewMemberDetails(member.id, {
+        name: member.name,
+        phone: member.phone,
+        role: member.role,
+        responsibilityText: member.responsibilityText,
+        backupPlan: member.backupPlan
+      })
+    );
+    touch('crew');
+    setEditing(null);
+  };
+
+  const saveFeeding = () => {
+    updateFeedingInterval(numberFromDraft(feedIntervalDraft));
+    feedDraft.forEach((item) =>
+      updateFeedingPlanItemDetails(item.id, {
+        label: item.label,
+        calories: numberFromDraft(item.calories),
+        hydrationOz: numberFromDraft(item.hydrationOz),
+        electrolytesMg: numberFromDraft(item.electrolytesMg),
+        notes: item.notes,
+        backup: item.backup
+      })
+    );
+    touch('feeding');
+    setEditing(null);
+  };
+
+  const saveSafety = () => {
+    updateSafetyPlan(safetyDraft);
+    touch('safety');
+    setEditing(null);
+  };
+
+  const resetSection = (section: EditableSection) => {
+    if (section === 'overview') {
+      resetMissionOverview();
+    }
+
+    if (section === 'timeline') {
+      resetOperationalTimeline();
+    }
+
+    if (section === 'crew') {
+      resetCrew();
+    }
+
+    if (section === 'feeding') {
+      resetFeedingPlan();
+    }
+
+    if (section === 'safety') {
+      resetSafetyPlan();
+    }
+
+    touch(section);
+    setEditing(null);
+  };
+
+  const addCrewDraft = () => {
+    setCrewDraft((current) => [
+      ...current,
+      {
+        id: `crew-custom-${Date.now()}`,
+        name: 'New crew member',
+        role: 'safety',
+        phone: '',
+        responsibilityText: 'Confirm responsibility',
+        backupPlan: 'Confirm backup owner during planning session.'
+      }
+    ]);
+  };
+
+  const addFeedDraft = () => {
+    setFeedDraft((current) => [
+      ...current,
+      {
+        id: `feed-custom-${Date.now()}`,
+        label: 'New feed option',
+        calories: '0',
+        hydrationOz: '0',
+        electrolytesMg: '0',
+        notes: 'Add prep and handoff notes.',
+        backup: true
+      }
+    ]);
+  };
 
   return (
-    <div className="page-grid">
+    <div className="page-grid mvp-dashboard">
       <section className={`panel critical-action span-12 ${criticalAction.severity}`} aria-labelledby="critical-action-title">
         <div>
-          <p className="page-kicker">Next Critical Action</p>
+          <p className="page-kicker">Right Now</p>
           <h3 className="critical-title" id="critical-action-title">
             {criticalAction.title}
           </h3>
@@ -99,415 +378,603 @@ export function MissionControl() {
         <p className="critical-detail">{criticalAction.detail}</p>
         <div className="critical-meta">
           {criticalAction.dueAt ? <span className="sync-pill online">{formatClock(criticalAction.dueAt)}</span> : null}
-          <span className={`severity-pill ${criticalAction.severity === 'normal' ? 'info' : criticalAction.severity}`}>
-            {criticalAction.actionLabel}
-          </span>
           {criticalAction.intent === 'feeding' ? (
             <button className="button primary" type="button" onClick={() => logQuickAction('feeding-completed', activeActorId)}>
               <Utensils aria-hidden="true" />
               Log feeding
             </button>
           ) : null}
-          {criticalAction.intent === 'protocol' ? (
-            <Link className="button danger" to={getMissionPath(mission.mode, 'safety')}>
-              <ShieldCheck aria-hidden="true" />
-              Open protocol
-            </Link>
-          ) : null}
-          {criticalAction.intent === 'alert' && criticalAction.alertId ? (
-            <button className="button primary" type="button" onClick={() => acknowledgeAlert(criticalAction.alertId!)}>
-              <CheckCircle2 aria-hidden="true" />
-              Acknowledge
-            </button>
-          ) : null}
-          {criticalAction.intent === 'checklist' ? (
-            <Link className="button primary" to={getMissionPath(mission.mode, 'checklists')}>
-              <CheckCircle2 aria-hidden="true" />
-              Open readiness
-            </Link>
-          ) : null}
           {criticalAction.intent === 'timeline' ? (
             <Link className="button primary" to={getMissionPath(mission.mode, 'live-operations')}>
               <Clock3 aria-hidden="true" />
-              Open timeline
+              Timeline
+            </Link>
+          ) : null}
+          {criticalAction.intent === 'protocol' ? (
+            <Link className="button danger" to={getMissionPath(mission.mode, 'safety')}>
+              <ShieldAlert aria-hidden="true" />
+              Protocol
             </Link>
           ) : null}
         </div>
       </section>
 
-      <section className="mission-emergency-strip span-12" aria-labelledby="emergency-access-title">
-        <div>
-          <p className="page-kicker">Emergency Access</p>
-          <h3 className="panel-title" id="emergency-access-title">
-            Trigger protocol from here
-          </h3>
-        </div>
-        <div className="mission-emergency-actions">
-          {emergencyActions.map((action) => (
-            <button
-              className={`emergency-button compact ${action.tone}`}
-              key={action.kind}
-              type="button"
-              onClick={() => triggerEmergency(action.kind, activeActorId)}
-            >
-              <action.icon aria-hidden="true" />
-              {action.label}
-            </button>
-          ))}
-        </div>
-        <Link className="button ghost" to={getMissionPath(mission.mode, 'safety')}>
-          <ShieldCheck aria-hidden="true" />
-          Protocols
-        </Link>
-      </section>
-
-      {inTemplateMode ? (
+      {mission.mode === 'template' ? (
         <section className="panel span-12 template-onboarding" aria-labelledby="template-onboarding-title">
           <div className="panel-header">
             <div>
               <h3 className="panel-title" id="template-onboarding-title">
                 Template Onboarding
               </h3>
-              <p className="panel-subtitle">Use this as your reusable operating system for any endurance swim route.</p>
+              <p className="panel-subtitle">
+                Replace every bracketed placeholder, assign real contacts, then duplicate into a live swim.
+              </p>
             </div>
-            <ShieldCheck aria-hidden="true" />
+            <ShieldAlert aria-hidden="true" />
           </div>
-          <ul className="template-guidance-list">
-            <li>Open Mission Setup and replace every bracketed placeholder with real event details.</li>
-            <li>Assign your real crew names and phone numbers so ownership appears correctly across checklists, logs, and protocols.</li>
-            <li>Set feeding and evidence cadence before launch, then use Swim Tracker and WOWSA Evidence to capture timestamped proof.</li>
-            <li>Customize contacts and emergency thresholds for the venue, then run the same workflow each training swim.</li>
-          </ul>
         </section>
       ) : null}
 
-      <section className="panel span-12" aria-labelledby="overview-title">
-        <div className="panel-header">
-          <div>
-            <h3 className="panel-title" id="overview-title">
-              Swim Overview
-            </h3>
-            <p className="panel-subtitle">
-              {mission.session.swimmerName} · {mission.session.location} · {mission.session.plannedDistance}
-            </p>
+      <EditableCard
+        section="overview"
+        title="Swim Overview"
+        subtitle={`${mission.session.swimmerName} - ${mission.session.location}`}
+        icon={<CalendarClock aria-hidden="true" />}
+        editing={editing}
+        lastUpdated={lastUpdated.overview}
+        onEdit={() => beginEdit('overview')}
+        onCancel={cancelEdit}
+        onReset={() => resetSection('overview')}
+        onSave={saveOverview}
+      >
+        {editing === 'overview' ? (
+          <div className="edit-form-grid">
+            <label className="field-label">
+              Mission name
+              <input className="input" value={overviewDraft.name} onChange={(event) => setOverviewDraft({ ...overviewDraft, name: event.target.value })} />
+            </label>
+            <label className="field-label">
+              Swimmer
+              <input className="input" value={overviewDraft.swimmerName} onChange={(event) => setOverviewDraft({ ...overviewDraft, swimmerName: event.target.value })} />
+            </label>
+            <label className="field-label">
+              Location
+              <input className="input" value={overviewDraft.location} onChange={(event) => setOverviewDraft({ ...overviewDraft, location: event.target.value })} />
+            </label>
+            <label className="field-label">
+              Goal
+              <input className="input" value={overviewDraft.plannedDistance} onChange={(event) => setOverviewDraft({ ...overviewDraft, plannedDistance: event.target.value })} />
+            </label>
+            <label className="field-label">
+              Start
+              <input className="input" value={overviewDraft.plannedStartTime} onChange={(event) => setOverviewDraft({ ...overviewDraft, plannedStartTime: event.target.value })} />
+            </label>
+            <label className="field-label">
+              Status
+              <select className="select" value={overviewDraft.status} onChange={(event) => setOverviewDraft({ ...overviewDraft, status: event.target.value as MissionStatus })}>
+                {missionStatuses.map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
-          <span className={`status-pill ${mission.status}`}>{mission.status}</span>
-        </div>
-        <div className="metric-grid">
-          <div className="metric">
-            <span className="metric-label">Start</span>
-            <span className="metric-value">{mission.session.plannedStartTime}</span>
-            <span className="metric-note">Logged {formatClock(mission.startedAt)}</span>
-          </div>
-          <div className="metric">
-            <span className="metric-label">Location</span>
-            <span className="metric-value">{mission.session.location}</span>
-            <span className="metric-note">{mission.position.label}</span>
-          </div>
-          <div className="metric">
-            <span className="metric-label">Weather / Tide</span>
-            <span className="metric-value">{mission.conditions.summary}</span>
-            <span className="metric-note">{riskPlan.tideWindow}</span>
-          </div>
-          <div className="metric">
-            <span className="metric-label">Support Crew</span>
-            <span className="metric-value">{activeCrew.length}/{mission.crew.length}</span>
-            <span className="metric-note">on duty now</span>
-          </div>
-          <div className="metric">
-            <span className="metric-label">Emergency Contacts</span>
-            <span className="metric-value">{mission.contacts.length}</span>
-            <span className="metric-note">{mission.contacts[0]?.channel ?? 'ready'}</span>
-          </div>
-          <div className="metric">
-            <span className="metric-label">Key Milestone</span>
-            <span className="metric-value">{nextMilestone?.dueAt ? formatClock(nextMilestone.dueAt) : 'Ready'}</span>
-            <span className="metric-note">{nextMilestone?.title ?? 'No timed items open'}</span>
-          </div>
-        </div>
-      </section>
-
-      <section className="panel span-12" aria-labelledby="readiness-title">
-        <div className="panel-header">
-          <div>
-            <h3 className="panel-title" id="readiness-title">
-              Packing + Readiness
-            </h3>
-            <p className="panel-subtitle">
-              {mission.session.swimmerName} · {mission.session.location} · {mission.session.plannedDistance}
-            </p>
-          </div>
-          <div className="row-actions">
-            <Link className="button" to={getMissionPath(mission.mode, 'setup')}>
-              <Settings2 aria-hidden="true" />
-              Setup
-            </Link>
-            <Link className="button" to={getMissionPath(mission.mode, 'checklists')}>
-              Open readiness
-            </Link>
-          </div>
-        </div>
-        <div className="readiness-grid">
-          {readinessGroups.map((group) => (
-            <article className={`readiness-card ${group.status}`} key={group.domain}>
-              <div className="readiness-head">
-                <strong>{group.label}</strong>
-                <span className={group.status === 'ready' ? 'status-pill done' : group.status === 'attention' ? 'status-pill overdue' : 'status-pill pending'}>
-                  {group.done}/{group.total}
-                </span>
-              </div>
-              <div className="progress-track" aria-label={`${group.label} ${group.percent}% complete`}>
-                <div className="progress-fill" style={{ width: `${group.percent}%` }} />
-              </div>
-              <span className="row-meta">
-                {group.overdue ? `${group.overdue} overdue` : group.open ? `${group.open} open` : 'ready'}
-              </span>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="panel span-8" aria-labelledby="mission-state-title">
-        <div className="panel-header">
-          <div>
-            <h3 className="panel-title" id="mission-state-title">
-              Swim Status
-            </h3>
-            <p className="panel-subtitle">{mission.position.label}</p>
-          </div>
-          <span className={`status-pill ${mission.status}`}>{mission.status}</span>
-        </div>
-        <div className="metric-grid">
-          <div className="metric">
-            <span className="metric-label">Elapsed</span>
-            <span className="metric-value">{getElapsedLabel(mission, now)}</span>
-            <span className="metric-note">Started {formatClock(mission.startedAt)}</span>
-          </div>
-          <div className="metric">
-            <span className="metric-label">Next Feeding</span>
-            <span className="metric-value">{minutesToFeeding <= 0 ? 'Due now' : `${minutesToFeeding} min`}</span>
-            <span className="metric-note">Scheduled {formatClock(mission.nextFeedingAt)}</span>
-          </div>
-          <div className="metric">
-            <span className="metric-label">Last Feeding</span>
-            <span className="metric-value">{formatRelative(mission.lastFeedingAt)}</span>
-            <span className="metric-note">{formatClock(mission.lastFeedingAt)}</span>
-          </div>
-          <div className="metric">
-            <span className="metric-label">Swimmer</span>
-            <span className="metric-value">{latestCondition.level}</span>
-            <span className="metric-note">{latestCondition.note}</span>
-          </div>
-          <div className="metric">
-            <span className="metric-label">GPS Track</span>
-            <span className="metric-value">{checkpoints.length}</span>
-            <span className="metric-note">route checkpoints</span>
-          </div>
-          <div className="metric">
-            <span className="metric-label">Feed Plan</span>
-            <span className="metric-value">{feedingPlan.length}</span>
-            <span className="metric-note">primary + backup options</span>
-          </div>
-        </div>
-      </section>
-
-      <section className="panel span-4" aria-labelledby="conditions-title">
-        <div className="panel-header">
-          <div>
-            <h3 className="panel-title" id="conditions-title">
-              Conditions + Risk
-            </h3>
-            <p className="panel-subtitle">{mission.conditions.summary}</p>
-          </div>
-          <Droplets aria-hidden="true" />
-        </div>
-        <div className="metric-grid">
-          <div className="metric">
-            <span className="metric-label">Water</span>
-            <span className="metric-value">{mission.conditions.waterTempF} F</span>
-          </div>
-          <div className="metric">
-            <span className="metric-label">Wind</span>
-            <span className="metric-value">{mission.conditions.windKts} kt</span>
-          </div>
-          <div className="metric">
-            <span className="metric-label">Current</span>
-            <span className="metric-value">{mission.conditions.currentKts} kt</span>
-          </div>
-          <div className="metric">
-            <span className="metric-label">Swell</span>
-            <span className="metric-value">{mission.conditions.swellFt} ft</span>
-          </div>
-        </div>
-        <div className="row-actions" style={{ marginTop: 16 }}>
-          <Link className="button" to={getMissionPath(mission.mode, 'conditions-risk')}>
-            Open risk
-          </Link>
-        </div>
-      </section>
-
-      <section className="panel span-12" aria-labelledby="cadence-title">
-        <div className="panel-header">
-          <div>
-            <h3 className="panel-title" id="cadence-title">
-              Operational Cadence
-            </h3>
-            <p className="panel-subtitle">Feeding, check-ins, condition scans, and readiness items.</p>
-          </div>
-          <Link className="button" to={getMissionPath(mission.mode, 'live-operations')}>
-            Timeline
-          </Link>
-        </div>
-        <ul className="cadence-list">
-          {cadenceItems.map((item) => (
-            <li className={`cadence-row ${item.severity}`} key={item.id}>
-              <div>
-                <div className="row-title">{item.label}</div>
-                <div className="row-meta">
-                  {item.detail} · {item.minutesUntil <= 0 ? `${Math.abs(item.minutesUntil)} min overdue` : `${item.minutesUntil} min`}
-                </div>
-              </div>
-              <span className={`severity-pill ${item.severity === 'normal' ? 'info' : item.severity}`}>{formatClock(item.dueAt)}</span>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section className="panel span-7" aria-labelledby="quick-log-title">
-        <div className="panel-header">
-          <div>
-            <h3 className="panel-title" id="quick-log-title">
-              Quick Log
-            </h3>
-            <p className="panel-subtitle">Active actor: {getCrewLabel(mission, activeActorId)}</p>
-          </div>
-          <Clock3 aria-hidden="true" />
-        </div>
-        <div className="quick-grid">
-          {quickActions.map((action) => (
-            <button
-              className={action.tone ? `quick-button ${action.tone}` : 'quick-button'}
-              key={action.kind}
-              type="button"
-              onClick={() => logQuickAction(action.kind, activeActorId)}
-            >
-              <action.icon aria-hidden="true" />
-              {action.label}
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section className="panel span-5" aria-labelledby="alerts-title">
-        <div className="panel-header">
-          <div>
-            <h3 className="panel-title" id="alerts-title">
-              Active Alerts
-            </h3>
-            <p className="panel-subtitle">{activeAlerts.length ? `${activeAlerts.length} needs attention` : 'No active alerts'}</p>
-          </div>
-          <AlertTriangle aria-hidden="true" />
-        </div>
-        {activeAlerts.length ? (
-          <ul className="alert-list">
-            {activeAlerts.map((alert) => (
-              <li className={`alert-row ${alert.severity}`} key={alert.id}>
-                <div className="split-row">
-                  <strong>{alert.title}</strong>
-                  <span className={`severity-pill ${alert.severity}`}>{alert.severity}</span>
-                </div>
-                <span className="alert-detail">{alert.detail}</span>
-                <div className="alert-actions">
-                  <button className="button" type="button" onClick={() => acknowledgeAlert(alert.id)}>
-                    Acknowledge
-                  </button>
-                  <button className="button ghost" type="button" onClick={() => resolveAlert(alert.id)}>
-                    Resolve
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
         ) : (
-          <div className="empty-state">All safety flags clear.</div>
-        )}
-      </section>
-
-      {activeProtocol ? (
-        <section className="panel span-12" aria-labelledby="pinned-protocol-title">
-          <div className="panel-header">
-            <div>
-              <h3 className="panel-title" id="pinned-protocol-title">
-                {activeProtocol.title}
-              </h3>
-              <p className="panel-subtitle">Pinned for the active emergency state.</p>
-            </div>
-            <ShieldCheck aria-hidden="true" />
+          <div className="mvp-card-content">
+            <MvpFact label="Date / time" value={mission.session.plannedStartTime} note={mission.name} />
+            <MvpFact label="Location" value={mission.session.location} note={mission.position.label} />
+            <MvpFact label="Goal" value={mission.session.plannedDistance} note={`Status: ${mission.status}`} />
+            <MvpFact label="Now" value={getElapsedLabel(mission, now)} note={criticalAction.title} />
           </div>
-          <ol className="protocol-list">
-            {activeProtocol.steps.map((step) => (
-              <li className="protocol-step" key={step.id}>
-                <span className="protocol-index">{step.order}</span>
-                <div>
-                  <div className="row-title">{step.label}</div>
-                  <div className="protocol-owner">{roleLabels[step.ownerRole]}</div>
-                </div>
+        )}
+      </EditableCard>
+
+      <EditableCard
+        section="timeline"
+        title="Timeline"
+        subtitle={`${nextTimelineItems.length} upcoming items`}
+        icon={<Clock3 aria-hidden="true" />}
+        editing={editing}
+        lastUpdated={lastUpdated.timeline}
+        onEdit={() => beginEdit('timeline')}
+        onCancel={cancelEdit}
+        onReset={() => resetSection('timeline')}
+        onSave={saveTimeline}
+      >
+        {editing === 'timeline' ? (
+          <div className="editable-list">
+            {timelineDraft.map((item, index) => (
+              <article className="edit-row-card" key={item.id}>
+                <label className="field-label">
+                  Item
+                  <input
+                    className="input"
+                    value={item.label}
+                    onChange={(event) =>
+                      setTimelineDraft((current) => current.map((candidate, currentIndex) => (currentIndex === index ? { ...candidate, label: event.target.value } : candidate)))
+                    }
+                  />
+                </label>
+                <label className="field-label">
+                  Time
+                  <input
+                    className="input"
+                    type="datetime-local"
+                    value={item.at}
+                    onChange={(event) =>
+                      setTimelineDraft((current) => current.map((candidate, currentIndex) => (currentIndex === index ? { ...candidate, at: event.target.value } : candidate)))
+                    }
+                  />
+                </label>
+                <label className="field-label">
+                  Owner
+                  <select
+                    className="select"
+                    value={item.ownerId}
+                    onChange={(event) =>
+                      setTimelineDraft((current) => current.map((candidate, currentIndex) => (currentIndex === index ? { ...candidate, ownerId: event.target.value } : candidate)))
+                    }
+                  >
+                    {mission.crew.map((member) => (
+                      <option key={member.id} value={member.id}>
+                        {member.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field-label span-fields">
+                  Notes
+                  <textarea
+                    className="textarea"
+                    value={item.notes}
+                    onChange={(event) =>
+                      setTimelineDraft((current) => current.map((candidate, currentIndex) => (currentIndex === index ? { ...candidate, notes: event.target.value } : candidate)))
+                    }
+                  />
+                </label>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <ul className="mvp-list">
+            {nextTimelineItems.length ? (
+              nextTimelineItems.map((item) => (
+                <li key={item.id}>
+                  <span>{formatClock(item.at)}</span>
+                  <strong>{item.label}</strong>
+                  <small>{getCrewLabel(mission, item.ownerId)}</small>
+                </li>
+              ))
+            ) : (
+              <li>
+                <span>Done</span>
+                <strong>No upcoming timeline items</strong>
+                <small>Ready for the next update</small>
+              </li>
+            )}
+          </ul>
+        )}
+      </EditableCard>
+
+      <EditableCard
+        section="crew"
+        title="Crew"
+        subtitle={`${mission.crew.length} people - ${activeCrew.length} on duty`}
+        icon={<ContactRound aria-hidden="true" />}
+        editing={editing}
+        lastUpdated={lastUpdated.crew}
+        onEdit={() => beginEdit('crew')}
+        onCancel={cancelEdit}
+        onReset={() => resetSection('crew')}
+        onSave={saveCrew}
+      >
+        {editing === 'crew' ? (
+          <div className="editable-list">
+            {crewDraft.map((member, index) => (
+              <article className="edit-row-card" key={member.id}>
+                <label className="field-label">
+                  Name
+                  <input
+                    className="input"
+                    value={member.name}
+                    onChange={(event) =>
+                      setCrewDraft((current) => current.map((candidate, currentIndex) => (currentIndex === index ? { ...candidate, name: event.target.value } : candidate)))
+                    }
+                  />
+                </label>
+                <label className="field-label">
+                  Role
+                  <select
+                    className="select"
+                    value={member.role}
+                    onChange={(event) =>
+                      setCrewDraft((current) => current.map((candidate, currentIndex) => (currentIndex === index ? { ...candidate, role: event.target.value as CrewRole } : candidate)))
+                    }
+                  >
+                    {crewRoles.map((role) => (
+                      <option key={role} value={role}>
+                        {roleLabels[role]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field-label">
+                  Phone
+                  <input
+                    className="input"
+                    value={member.phone}
+                    onChange={(event) =>
+                      setCrewDraft((current) => current.map((candidate, currentIndex) => (currentIndex === index ? { ...candidate, phone: event.target.value } : candidate)))
+                    }
+                  />
+                </label>
+                <label className="field-label">
+                  Backup plan
+                  <input
+                    className="input"
+                    value={member.backupPlan}
+                    onChange={(event) =>
+                      setCrewDraft((current) => current.map((candidate, currentIndex) => (currentIndex === index ? { ...candidate, backupPlan: event.target.value } : candidate)))
+                    }
+                  />
+                </label>
+                <label className="field-label span-fields">
+                  Notes
+                  <textarea
+                    className="textarea"
+                    value={member.responsibilityText}
+                    onChange={(event) =>
+                      setCrewDraft((current) => current.map((candidate, currentIndex) => (currentIndex === index ? { ...candidate, responsibilityText: event.target.value } : candidate)))
+                    }
+                  />
+                </label>
+              </article>
+            ))}
+            <button className="button" type="button" onClick={addCrewDraft}>
+              <Plus aria-hidden="true" />
+              Add crew
+            </button>
+          </div>
+        ) : (
+          <ul className="mvp-list">
+            {mission.crew.slice(0, 5).map((member) => (
+              <li key={member.id}>
+                <span>{roleLabels[member.role]}</span>
+                <strong>{member.name}</strong>
+                <small>{member.phone || 'Phone pending'}</small>
               </li>
             ))}
-          </ol>
-        </section>
-      ) : null}
+          </ul>
+        )}
+      </EditableCard>
 
-      <section className="panel span-5" aria-labelledby="crew-title">
-        <div className="panel-header">
-          <div>
-            <h3 className="panel-title" id="crew-title">
-              Team On Duty
-            </h3>
-            <p className="panel-subtitle">{activeCrew.length} roles currently active</p>
+      <EditableCard
+        section="feeding"
+        title="Feed Plan"
+        subtitle={`Every ${mission.feedingIntervalMinutes} min`}
+        icon={<Utensils aria-hidden="true" />}
+        editing={editing}
+        lastUpdated={lastUpdated.feeding}
+        onEdit={() => beginEdit('feeding')}
+        onCancel={cancelEdit}
+        onReset={() => resetSection('feeding')}
+        onSave={saveFeeding}
+      >
+        {editing === 'feeding' ? (
+          <div className="editable-list">
+            <label className="field-label">
+              Interval minutes
+              <input className="input" type="number" min="5" max="180" value={feedIntervalDraft} onChange={(event) => setFeedIntervalDraft(event.target.value)} />
+            </label>
+            {feedDraft.map((item, index) => (
+              <article className="edit-row-card" key={item.id}>
+                <label className="field-label">
+                  Item
+                  <input
+                    className="input"
+                    value={item.label}
+                    onChange={(event) =>
+                      setFeedDraft((current) => current.map((candidate, currentIndex) => (currentIndex === index ? { ...candidate, label: event.target.value } : candidate)))
+                    }
+                  />
+                </label>
+                <label className="field-label">
+                  Calories
+                  <input
+                    className="input"
+                    type="number"
+                    value={item.calories}
+                    onChange={(event) =>
+                      setFeedDraft((current) => current.map((candidate, currentIndex) => (currentIndex === index ? { ...candidate, calories: event.target.value } : candidate)))
+                    }
+                  />
+                </label>
+                <label className="field-label">
+                  Hydration oz
+                  <input
+                    className="input"
+                    type="number"
+                    value={item.hydrationOz}
+                    onChange={(event) =>
+                      setFeedDraft((current) => current.map((candidate, currentIndex) => (currentIndex === index ? { ...candidate, hydrationOz: event.target.value } : candidate)))
+                    }
+                  />
+                </label>
+                <label className="field-label">
+                  Sodium mg
+                  <input
+                    className="input"
+                    type="number"
+                    value={item.electrolytesMg}
+                    onChange={(event) =>
+                      setFeedDraft((current) => current.map((candidate, currentIndex) => (currentIndex === index ? { ...candidate, electrolytesMg: event.target.value } : candidate)))
+                    }
+                  />
+                </label>
+                <label className="checkbox-row span-fields">
+                  <input
+                    type="checkbox"
+                    checked={item.backup}
+                    onChange={(event) =>
+                      setFeedDraft((current) => current.map((candidate, currentIndex) => (currentIndex === index ? { ...candidate, backup: event.target.checked } : candidate)))
+                    }
+                  />
+                  Backup option
+                </label>
+                <label className="field-label span-fields">
+                  Notes
+                  <textarea
+                    className="textarea"
+                    value={item.notes}
+                    onChange={(event) =>
+                      setFeedDraft((current) => current.map((candidate, currentIndex) => (currentIndex === index ? { ...candidate, notes: event.target.value } : candidate)))
+                    }
+                  />
+                </label>
+              </article>
+            ))}
+            <button className="button" type="button" onClick={addFeedDraft}>
+              <Plus aria-hidden="true" />
+              Add feed
+            </button>
           </div>
-          <Radio aria-hidden="true" />
-        </div>
-        <ul className="row-list">
-          {activeCrew.map((member) => (
-            <li className="list-row" key={member.id}>
-              <div className="split-row">
-                <span className="row-title">{member.name}</span>
-                <span className="role-pill">{roleLabels[member.role]}</span>
-              </div>
-              <span className="row-meta">
-                {formatClock(member.shiftStart)} to {formatClock(member.shiftEnd)}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </section>
+        ) : (
+          <div className="mvp-card-content">
+            <MvpFact label="Next feed" value={minutesToFeeding <= 0 ? 'Due now' : `${minutesToFeeding} min`} note={formatClock(mission.nextFeedingAt)} />
+            <MvpFact label="Primary" value={primaryFeed?.label ?? 'Pending'} note={primaryFeed ? `${primaryFeed.calories} cal / ${primaryFeed.hydrationOz} oz` : 'Add feed item'} />
+            <MvpFact label="Backups" value={`${(mission.feedingPlan ?? []).filter((item) => item.backup).length}`} note="Available alternates" />
+          </div>
+        )}
+      </EditableCard>
 
-      <section className="panel span-7" aria-labelledby="timeline-title">
-        <div className="panel-header">
-          <div>
-            <h3 className="panel-title" id="timeline-title">
-              Recent Timeline
-            </h3>
-            <p className="panel-subtitle">Newest operational events first.</p>
+      <EditableCard
+        section="safety"
+        title="Safety Plan"
+        subtitle={primaryContact?.phone ?? 'Emergency contact pending'}
+        icon={<ShieldAlert aria-hidden="true" />}
+        editing={editing}
+        lastUpdated={lastUpdated.safety}
+        onEdit={() => beginEdit('safety')}
+        onCancel={cancelEdit}
+        onReset={() => resetSection('safety')}
+        onSave={saveSafety}
+      >
+        {editing === 'safety' ? (
+          <div className="edit-form-grid">
+            <label className="field-label">
+              Contact name
+              <input className="input" value={safetyDraft.emergencyContactName} onChange={(event) => setSafetyDraft({ ...safetyDraft, emergencyContactName: event.target.value })} />
+            </label>
+            <label className="field-label">
+              Contact role
+              <input className="input" value={safetyDraft.emergencyContactRole} onChange={(event) => setSafetyDraft({ ...safetyDraft, emergencyContactRole: event.target.value })} />
+            </label>
+            <label className="field-label">
+              Phone
+              <input className="input" value={safetyDraft.emergencyContactPhone} onChange={(event) => setSafetyDraft({ ...safetyDraft, emergencyContactPhone: event.target.value })} />
+            </label>
+            <label className="field-label">
+              Channel
+              <input className="input" value={safetyDraft.emergencyContactChannel} onChange={(event) => setSafetyDraft({ ...safetyDraft, emergencyContactChannel: event.target.value })} />
+            </label>
+            <label className="field-label span-fields">
+              Weather / tide
+              <input className="input" value={safetyDraft.tideWindow} onChange={(event) => setSafetyDraft({ ...safetyDraft, tideWindow: event.target.value })} />
+            </label>
+            <label className="field-label span-fields">
+              Weather source
+              <input className="input" value={safetyDraft.weatherSource} onChange={(event) => setSafetyDraft({ ...safetyDraft, weatherSource: event.target.value })} />
+            </label>
+            <label className="field-label span-fields">
+              Stop criteria
+              <textarea className="textarea" value={safetyDraft.abortConditionsText} onChange={(event) => setSafetyDraft({ ...safetyDraft, abortConditionsText: event.target.value })} />
+            </label>
+            <label className="field-label span-fields">
+              Risks
+              <textarea className="textarea" value={safetyDraft.medicalConcernsText} onChange={(event) => setSafetyDraft({ ...safetyDraft, medicalConcernsText: event.target.value })} />
+            </label>
           </div>
-          <Compass aria-hidden="true" />
-        </div>
-        <ul className="timeline-list">
-          {recentTimeline.map((event) => (
-            <li className="timeline-item" key={event.id}>
-              <span className="timeline-time">{formatClock(event.at)}</span>
+        ) : (
+          <div className="mvp-card-content">
+            <MvpFact label="Emergency" value={primaryContact?.name ?? 'Pending'} note={primaryContact ? `${primaryContact.phone} / ${primaryContact.channel}` : 'Add contact'} />
+            <MvpFact label="Weather" value={mission.conditions.summary} note={mission.riskPlan?.tideWindow ?? 'Pending'} />
+            <ul className="mvp-mini-list">
+              {primaryAbortCriteria.map((condition) => (
+                <li key={condition}>
+                  <Ban aria-hidden="true" />
+                  {condition}
+                </li>
+              ))}
+            </ul>
+            <div className="mission-emergency-actions calm">
+              {emergencyActions.map((action) => (
+                <button className={`emergency-button compact ${action.tone}`} key={action.kind} type="button" onClick={() => triggerEmergency(action.kind, activeActorId)}>
+                  {action.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </EditableCard>
+
+      <details className="more-planning-details span-12">
+        <summary>
+          <span>More Planning Details</span>
+          <ChevronDown aria-hidden="true" />
+        </summary>
+        <div className="more-planning-grid">
+          <section className="panel compact">
+            <div className="panel-header">
               <div>
-                <div className="timeline-summary">{event.summary}</div>
-                <div className="timeline-detail">
-                  {event.detail} · {getCrewLabel(mission, event.actorId)}
-                </div>
+                <h3 className="panel-title">Operational Cadence</h3>
+                <p className="panel-subtitle">Next timed work.</p>
               </div>
-              <span className={`severity-pill ${event.severity ?? 'info'}`}>{event.type}</span>
-            </li>
-          ))}
-        </ul>
-      </section>
+              <Clock3 aria-hidden="true" />
+            </div>
+            <ul className="cadence-list">
+              {cadenceItems.map((item) => (
+                <li className={`cadence-row ${item.severity}`} key={item.id}>
+                  <div>
+                    <div className="row-title">{item.label}</div>
+                    <div className="row-meta">{item.minutesUntil <= 0 ? `${Math.abs(item.minutesUntil)} min overdue` : `${item.minutesUntil} min`}</div>
+                  </div>
+                  <span className={`severity-pill ${item.severity === 'normal' ? 'info' : item.severity}`}>{formatClock(item.dueAt)}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section className="panel compact">
+            <div className="panel-header">
+              <div>
+                <h3 className="panel-title">Quick Notes</h3>
+                <p className="panel-subtitle">Active actor: {getCrewLabel(mission, activeActorId)}</p>
+              </div>
+              <Radio aria-hidden="true" />
+            </div>
+            <div className="quick-grid">
+              {quickActions.map((action) => (
+                <button className="quick-button" key={action.kind} type="button" onClick={() => logQuickAction(action.kind, activeActorId)}>
+                  {action.label}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="panel compact">
+            <div className="panel-header">
+              <div>
+                <h3 className="panel-title">Active Alerts</h3>
+                <p className="panel-subtitle">{activeAlerts.length ? `${activeAlerts.length} open` : 'Clear'}</p>
+              </div>
+              <AlertTriangle aria-hidden="true" />
+            </div>
+            {activeAlerts.length ? (
+              <ul className="alert-list">
+                {activeAlerts.map((alert) => (
+                  <li className={`alert-row ${alert.severity}`} key={alert.id}>
+                    <div className="row-title">{alert.title}</div>
+                    <span className="alert-detail">{alert.detail}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="empty-state">No active alerts.</div>
+            )}
+          </section>
+
+          <section className="panel compact">
+            <div className="panel-header">
+              <div>
+                <h3 className="panel-title">Recent Updates</h3>
+                <p className="panel-subtitle">Latest logged events.</p>
+              </div>
+              <HeartPulse aria-hidden="true" />
+            </div>
+            <ul className="timeline-list">
+              {recentTimeline.map((event) => (
+                <li className="timeline-item" key={event.id}>
+                  <span className="timeline-time">{formatClock(event.at)}</span>
+                  <div>
+                    <div className="timeline-summary">{event.summary}</div>
+                    <div className="timeline-detail">{event.detail}</div>
+                  </div>
+                  <span className={`severity-pill ${event.severity ?? 'info'}`}>{event.type}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </div>
+      </details>
+    </div>
+  );
+}
+
+interface EditableCardProps {
+  section: EditableSection;
+  title: string;
+  subtitle: string;
+  icon: ReactNode;
+  editing: EditableSection | null;
+  lastUpdated?: string;
+  onEdit: () => void;
+  onCancel: () => void;
+  onReset: () => void;
+  onSave: () => void;
+  children: ReactNode;
+}
+
+function EditableCard({ section, title, subtitle, icon, editing, lastUpdated, onEdit, onCancel, onReset, onSave, children }: EditableCardProps) {
+  const isEditing = editing === section;
+  const disabled = editing !== null && !isEditing;
+
+  return (
+    <section className={`panel mvp-edit-card ${section === 'overview' ? 'span-12' : 'span-6'}`} aria-labelledby={`${section}-card-title`}>
+      <div className="panel-header mvp-card-header">
+        <div>
+          <h3 className="panel-title" id={`${section}-card-title`}>
+            {title}
+          </h3>
+          <p className="panel-subtitle">{subtitle}</p>
+          <span className="row-meta">{formatUpdateTime(lastUpdated)}</span>
+        </div>
+        <div className="mvp-card-tools">
+          {icon}
+          {isEditing ? (
+            <>
+              <button className="button primary" type="button" onClick={onSave}>
+                <Save aria-hidden="true" />
+                Save
+              </button>
+              <button className="button" type="button" onClick={onCancel}>
+                <X aria-hidden="true" />
+                Cancel
+              </button>
+              <button className="button ghost" type="button" onClick={onReset}>
+                <RotateCcw aria-hidden="true" />
+                Reset
+              </button>
+            </>
+          ) : (
+            <button className="button" type="button" onClick={onEdit} disabled={disabled}>
+              <Pencil aria-hidden="true" />
+              Edit
+            </button>
+          )}
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function MvpFact({ label, value, note }: { label: string; value: string; note: string }) {
+  return (
+    <div className="mvp-fact">
+      <span className="metric-label">{label}</span>
+      <strong>{value}</strong>
+      <small>{note}</small>
     </div>
   );
 }

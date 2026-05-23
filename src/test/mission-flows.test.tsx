@@ -23,9 +23,23 @@ describe('mission-critical flows', () => {
   it('surfaces the next readiness or feeding action as the critical action', async () => {
     renderRoute('/');
 
-    expect(await screen.findByText('Next Critical Action')).toBeInTheDocument();
+    expect(await screen.findByText('Right Now')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /Prepare nutrition bottle/i })).toBeInTheDocument();
     expect(screen.getByText('Active Alerts')).toBeInTheDocument();
+  });
+
+  it('edits and saves the Catherine overview card', async () => {
+    const user = userEvent.setup();
+    renderRoute('/');
+
+    const overview = await screen.findByRole('region', { name: /Swim Overview/i });
+    await user.click(within(overview).getByRole('button', { name: /Edit/i }));
+    await user.clear(within(overview).getByLabelText(/Location/i));
+    await user.type(within(overview).getByLabelText(/Location/i), 'Santa Monica Test Swim');
+    await user.click(within(overview).getByRole('button', { name: /Save/i }));
+
+    expect(useMissionStore.getState().mission.session.location).toBe('Santa Monica Test Swim');
+    expect(within(overview).getByText('Santa Monica Test Swim')).toBeInTheDocument();
   });
 
   it('opens the focused feeding plan with nutrition and backup options', async () => {
@@ -161,7 +175,7 @@ describe('mission-critical flows', () => {
     renderRoute('/template');
 
     expect(await screen.findByText('Template Onboarding')).toBeInTheDocument();
-    expect(screen.getByText('Endurance Swim Expedition OS Template')).toBeInTheDocument();
+    expect(screen.getAllByText('Endurance Swim Expedition OS Template').length).toBeGreaterThan(0);
     expect(screen.getByText(/replace every bracketed placeholder/i)).toBeInTheDocument();
     expect(useTemplateMissionStore.getState().mission.mode).toBe('template');
   });

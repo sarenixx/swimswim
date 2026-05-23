@@ -322,7 +322,7 @@ export function getNextCriticalAction(mission: Mission, now = new Date()): Criti
       detail: 'Capture photo evidence with GPS, timestamp, and distance note.',
       severity: wowsaMinutes <= 0 ? 'critical' : wowsaMinutes <= 10 ? 'warning' : 'normal',
       dueAt: wowsaDueAt,
-      actionLabel: 'Capture GPS photo',
+      actionLabel: 'Take WOWSA photo',
       intent: 'wowsa'
     };
   }

@@ -11,6 +11,32 @@ export function formatGpsLabel(lat: number, lon: number) {
   return `${latLabel}, ${lonLabel}`;
 }
 
+export function parseGpsLabel(value: string): Pick<DevicePosition, 'lat' | 'lon' | 'label'> | undefined {
+  const matches = [...value.matchAll(/(-?\d+(?:\.\d+)?)\s*°?\s*([NSEW])?/gi)];
+  if (matches.length < 2) {
+    return undefined;
+  }
+
+  const signed = (match: RegExpMatchArray) => {
+    const number = Number(match[1]);
+    const hemisphere = match[2]?.toUpperCase();
+    return hemisphere === 'S' || hemisphere === 'W' ? -Math.abs(number) : number;
+  };
+
+  const lat = signed(matches[0]);
+  const lon = signed(matches[1]);
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    return undefined;
+  }
+
+  return {
+    lat,
+    lon,
+    label: formatGpsLabel(lat, lon)
+  };
+}
+
 export function getDevicePosition(): Promise<DevicePosition> {
   if (!navigator.geolocation) {
     return Promise.reject(new Error('Geolocation is not available on this device.'));
@@ -28,7 +54,19 @@ export function getDevicePosition(): Promise<DevicePosition> {
           label: formatGpsLabel(lat, lon)
         });
       },
-      () => reject(new Error('GPS permission denied or unavailable.')),
+      (error) => {
+        if (error.code === error.PERMISSION_DENIED) {
+          reject(new Error('GPS permission was denied. Allow location access in the browser, or enter coordinates manually.'));
+          return;
+        }
+
+        if (error.code === error.TIMEOUT) {
+          reject(new Error('GPS timed out. Try again outdoors, or enter coordinates manually.'));
+          return;
+        }
+
+        reject(new Error('GPS is unavailable on this device. Enter coordinates manually.'));
+      },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   });

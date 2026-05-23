@@ -25,7 +25,7 @@ describe('mission-critical flows', () => {
 
     expect(await screen.findByText('Right Now')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /Take WOWSA GPS evidence photo/i })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Capture GPS photo/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Take WOWSA photo/i })).toBeInTheDocument();
     expect(screen.getByText('Active Alerts')).toBeInTheDocument();
   });
 
@@ -71,7 +71,9 @@ describe('mission-critical flows', () => {
 
     const photo = useMissionStore.getState().mission.wowsaPhotos[0];
     expect(photo).toMatchObject({
-      gps: '33.71000 N, 118.28000 W',
+      gps: '33.71000° N, 118.28000° W',
+      lat: 33.71,
+      lon: -118.28,
       distanceSwum: '4.2 miles',
       evidenceStatus: 'needs-image'
     });

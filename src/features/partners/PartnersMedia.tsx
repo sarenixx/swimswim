@@ -1,7 +1,7 @@
 import { Camera, CheckCircle2, Handshake, Image as ImageIcon, Mail, MapPin, Plus, Timer, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import logoUrl from '../../assets/logo.webp';
-import { getDevicePosition } from '../../lib/gps';
+import { formatGpsLabel, getDevicePosition, parseGpsLabel } from '../../lib/gps';
 import {
   buildRouteCsv,
   buildWowsaEvidenceManifest,
@@ -53,6 +53,11 @@ function formatDueLabel(secondsUntil: number) {
   const seconds = absoluteSeconds % 60;
   const clock = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   return secondsUntil < 0 ? `Overdue ${clock}` : clock;
+}
+
+function numberFromCoordinate(value: string) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 export function PartnersMedia() {
@@ -161,11 +166,16 @@ export function PartnersMedia() {
         imageSizeBytes = photoDraft.imageFile.size;
       }
 
+      const parsedGps = parseGpsLabel(photoDraft.gps);
+      const lat = photoDraft.lat ?? parsedGps?.lat;
+      const lon = photoDraft.lon ?? parsedGps?.lon;
+      const gps = lat !== undefined && lon !== undefined ? formatGpsLabel(lat, lon) : photoDraft.gps || mission.position.label;
+
       addWowsaPhoto({
         at,
-        gps: photoDraft.gps || mission.position.label,
-        lat: photoDraft.lat,
-        lon: photoDraft.lon,
+        gps,
+        lat,
+        lon,
         gpsAccuracyM: photoDraft.gpsAccuracyM,
         distanceSwum: photoDraft.distanceSwum,
         notes: photoDraft.notes,
@@ -296,7 +306,15 @@ export function PartnersMedia() {
             <input
               className="input"
               value={photoDraft.gps}
-              onChange={(event) => setPhotoDraft((draft) => ({ ...draft, gps: event.target.value }))}
+              onChange={(event) => {
+                const parsed = parseGpsLabel(event.target.value);
+                setPhotoDraft((draft) => ({
+                  ...draft,
+                  gps: event.target.value,
+                  lat: parsed?.lat ?? draft.lat,
+                  lon: parsed?.lon ?? draft.lon
+                }));
+              }}
               placeholder={mission.position.label}
             />
           </label>
@@ -321,17 +339,43 @@ export function PartnersMedia() {
         <div className="two-column-form" style={{ marginTop: 12 }}>
           <label className="field-label">
             Latitude
-            <input className="input" value={photoDraft.lat ?? ''} readOnly placeholder="Capture GPS" />
+            <input
+              className="input"
+              inputMode="decimal"
+              value={photoDraft.lat ?? ''}
+              onChange={(event) => {
+                const lat = numberFromCoordinate(event.target.value);
+                setPhotoDraft((draft) => ({
+                  ...draft,
+                  lat,
+                  gps: lat !== undefined && draft.lon !== undefined ? formatGpsLabel(lat, draft.lon) : draft.gps
+                }));
+              }}
+              placeholder="33.71000"
+            />
           </label>
           <label className="field-label">
             Longitude
-            <input className="input" value={photoDraft.lon ?? ''} readOnly placeholder="Capture GPS" />
+            <input
+              className="input"
+              inputMode="decimal"
+              value={photoDraft.lon ?? ''}
+              onChange={(event) => {
+                const lon = numberFromCoordinate(event.target.value);
+                setPhotoDraft((draft) => ({
+                  ...draft,
+                  lon,
+                  gps: draft.lat !== undefined && lon !== undefined ? formatGpsLabel(draft.lat, lon) : draft.gps
+                }));
+              }}
+              placeholder="-118.28000"
+            />
           </label>
         </div>
         <div className="row-actions" style={{ marginTop: 12 }}>
-          <button className="button" type="button" onClick={capturePhotoGps}>
+          <button className="button primary" type="button" onClick={capturePhotoGps}>
             <MapPin aria-hidden="true" />
-            Capture photo GPS
+            Capture GPS coordinates
           </button>
           <label className="button">
             <ImageIcon aria-hidden="true" />
@@ -344,7 +388,7 @@ export function PartnersMedia() {
               onChange={(event) => handlePhotoFile(event.target.files?.[0])}
             />
           </label>
-          <button className="button primary" type="button" onClick={logPhoto}>
+          <button className="button" type="button" onClick={logPhoto}>
             <Plus aria-hidden="true" />
             Save evidence
           </button>

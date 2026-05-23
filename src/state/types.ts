@@ -267,12 +267,16 @@ export interface WowsaPhotoEntry {
   number: number;
   at: string;
   gps: string;
+  lat?: number;
+  lon?: number;
   gpsAccuracyM?: number;
   distanceSwum: string;
   notes: string;
   hasPhoto: boolean;
   imageName?: string;
   imageDataUrl?: string;
+  imageStorageKey?: string;
+  imageSizeBytes?: number;
   evidenceStatus: 'ready' | 'needs-gps' | 'needs-image';
   actorId: string;
 }

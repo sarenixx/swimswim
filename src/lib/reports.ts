@@ -64,10 +64,12 @@ function wowsaBlock(mission: Mission) {
       (photo) => `Photo #${photo.number}
   Time: ${format(new Date(photo.at), 'p')}
   GPS: ${blank(photo.gps)}
+  Lat/Lon: ${photo.lat !== undefined && photo.lon !== undefined ? `${photo.lat}, ${photo.lon}` : '-'}
   GPS Accuracy: ${photo.gpsAccuracyM ? `+/- ${Math.round(photo.gpsAccuracyM)}m` : '-'}
   Distance swum: ${blank(photo.distanceSwum)}
   Evidence status: ${blank(photo.evidenceStatus)}
   Photo file: ${photo.imageName || (photo.hasPhoto ? 'Selected - attach from camera roll' : 'Not selected')}
+  Local image storage: ${photo.imageStorageKey ? 'Browser evidence cache' : '-'}
   Notes: ${blank(photo.notes)}`
     )
     .join('\n\n');
@@ -151,7 +153,7 @@ Note: attach every corresponding photo from the camera roll before sending.`;
 
 export function getWowsaEvidenceChecks(photo: WowsaPhotoEntry) {
   return [
-    { id: 'image', label: 'Photo attached', done: Boolean(photo.hasPhoto || photo.imageDataUrl || photo.imageName) },
+    { id: 'image', label: 'Photo attached', done: Boolean(photo.hasPhoto || photo.imageDataUrl || photo.imageName || photo.imageStorageKey) },
     { id: 'gps', label: 'GPS present', done: Boolean(photo.gps) },
     { id: 'timestamp', label: 'Timestamp present', done: Boolean(photo.at) },
     { id: 'accuracy', label: 'Accuracy present', done: photo.gpsAccuracyM !== undefined },
@@ -184,9 +186,13 @@ export function buildWowsaEvidenceManifest(mission: Mission) {
         number: photo.number,
         timestamp: photo.at,
         gps: photo.gps,
+        lat: photo.lat,
+        lon: photo.lon,
         gpsAccuracyM: photo.gpsAccuracyM,
         distanceSwum: photo.distanceSwum,
         imageName: photo.imageName,
+        imageStorageKey: photo.imageStorageKey,
+        imageSizeBytes: photo.imageSizeBytes,
         evidenceStatus: photo.evidenceStatus,
         checks: getWowsaEvidenceChecks(photo),
         notes: photo.notes

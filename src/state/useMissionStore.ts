@@ -1218,7 +1218,24 @@ const createMissionStore = (storageName: string, seedBuilder: () => Mission): Mi
               mission: appendTimeline(
                 {
                   ...state.mission,
-                  wowsaPhotos: [photo, ...(state.mission.wowsaPhotos ?? [])]
+                  wowsaPhotos: [photo, ...(state.mission.wowsaPhotos ?? [])],
+                  expeditionCheckpoints:
+                    photo.lat !== undefined && photo.lon !== undefined
+                      ? [
+                          {
+                            id: makeId('checkpoint-wowsa', at),
+                            at,
+                            actorId: activeActorId,
+                            lat: photo.lat,
+                            lon: photo.lon,
+                            gps: photo.gps,
+                            accuracyM: photo.gpsAccuracyM,
+                            label: `WOWSA photo #${photo.number}`,
+                            note: photo.distanceSwum || photo.notes || 'Photo evidence checkpoint'
+                          },
+                          ...(state.mission.expeditionCheckpoints ?? [])
+                        ]
+                      : state.mission.expeditionCheckpoints
                 },
                 event
               ),

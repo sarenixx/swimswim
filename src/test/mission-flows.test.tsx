@@ -60,6 +60,24 @@ describe('mission-critical flows', () => {
     expect(screen.getByText(/Wind above 18 kt/i)).toBeInTheDocument();
   });
 
+  it('saves WOWSA GPS photo evidence metadata locally', async () => {
+    const user = userEvent.setup();
+    renderRoute('/wowsa');
+
+    expect(await screen.findByText('WOWSA GPS Photo Evidence')).toBeInTheDocument();
+    await user.type(screen.getByLabelText(/Photo GPS/i), '33.71000 N, 118.28000 W');
+    await user.type(screen.getByLabelText(/Cumulative distance/i), '4.2 miles');
+    await user.click(screen.getByRole('button', { name: 'Save evidence' }));
+
+    const photo = useMissionStore.getState().mission.wowsaPhotos[0];
+    expect(photo).toMatchObject({
+      gps: '33.71000 N, 118.28000 W',
+      distanceSwum: '4.2 miles',
+      evidenceStatus: 'needs-image'
+    });
+    expect(useMissionStore.getState().mission.timeline[0].summary).toBe('WOWSA photo #1 logged');
+  });
+
   it('shows and completes planned swim timeline items', async () => {
     const user = userEvent.setup();
     renderRoute('/live-operations');

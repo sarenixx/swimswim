@@ -381,7 +381,7 @@ export function MissionControl() {
             </Link>
           ) : null}
           {criticalAction.intent === 'wowsa' ? (
-            <Link className="button primary" to={getMissionPath(mission.mode, 'wowsa')}>
+            <Link className="button primary" to={`${getMissionPath(mission.mode, 'wowsa')}#wowsa-capture`}>
               <Camera aria-hidden="true" />
               Capture GPS photo
             </Link>

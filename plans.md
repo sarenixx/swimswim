@@ -28,6 +28,7 @@ The first demonstrably useful release is a responsive progressive web app, which
 - [x] (2026-05-23 22:10Z) Simplified Catherine's live dashboard into a calm editable MVP demo. Mission Control now leads with the current action plus five editable cards: Swim Overview, Timeline, Crew, Feed Plan, and Safety Plan. Each card supports edit, save, cancel, and reset, while secondary operational detail sits behind a More Planning Details disclosure.
 - [x] (2026-05-23 22:16Z) Corrected the top Right Now priority back to WOWSA GPS photo capture when evidence is due or overdue, and changed emergency access from alert-style signals to calm protocol access buttons.
 - [x] (2026-05-23 22:18Z) Simplified protocol access further from three scenario buttons to one Protocol button. The detailed Safety page now uses a quiet scenario selector to review medical, distress, and abort protocols without presenting them as primary actions.
+- [x] (2026-05-23 22:25Z) Made the WOWSA Right Now action operational. The capture flow now records GPS label, latitude, longitude, accuracy, timestamp, distance, notes, and image metadata; stores photo blobs in browser IndexedDB; keeps evidence metadata in the mission store; adds GPS photo checkpoints to route evidence; and exports the richer manifest/report data.
 
 ## Surprises & Discoveries
 
@@ -48,6 +49,9 @@ The first demonstrably useful release is a responsive progressive web app, which
 
 - Observation: The top dashboard action should reflect certification evidence when WOWSA GPS photo capture is overdue.
   Evidence: The seeded Catherine swim is already past the 30-minute evidence interval, and the user explicitly rejected the feeding/timeline overdue action as the first dashboard rectangle.
+
+- Observation: WOWSA capture needs durable local image storage, not only reminder text.
+  Evidence: The user asked for the Right Now photo capture to become usable with GPS and storage, so image blobs now live in browser evidence storage while mission metadata remains in the local-first app state.
 
 ## Decision Log
 
@@ -98,6 +102,8 @@ The follow-up pass made the timeline and crew coordination modules more operatio
 The Catherine demo pass deliberately reduced the first dashboard surface. The live route now acts as a collaborative editing session with five primary cards and explicit edit/save/cancel/reset controls, while retaining the richer operational state behind collapsed planning details and deeper routes.
 
 The latest correction restored the WOWSA GPS photo capture as the highest visible overdue action when certification evidence is due. Protocol access is now a single calm button, with scenario review handled inside the Safety page rather than as three primary actions.
+
+The WOWSA evidence pass turned the reminder into a real local workflow. Capture now uses device GPS when permitted, camera/file input for the image, IndexedDB for the image blob, persisted mission state for the evidence record, and manifest/report exports that include GPS coordinates, accuracy, storage key, and image size.
 
 ## Context and Orientation
 

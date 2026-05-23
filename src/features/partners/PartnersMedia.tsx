@@ -1,7 +1,7 @@
 import { Camera, CheckCircle2, Handshake, Image as ImageIcon, Mail, MapPin, Plus, Timer, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import logoUrl from '../../assets/logo.webp';
-import { getDevicePosition, readFileAsDataUrl } from '../../lib/gps';
+import { getDevicePosition } from '../../lib/gps';
 import {
   buildRouteCsv,
   buildWowsaEvidenceManifest,
@@ -9,8 +9,44 @@ import {
   getWowsaEvidenceChecks,
   mailtoHref
 } from '../../lib/reports';
-import { formatClock, getCrewLabel } from '../../state/selectors';
+import { deleteEvidenceImage, getEvidenceImage, makeEvidenceImageKey, saveEvidenceImage } from '../../lib/storage/evidenceStore';
+import { useNow } from '../../lib/useNow';
+import { formatClock, getCrewLabel, getWowsaNextDueAt } from '../../state/selectors';
 import { useMissionStore } from '../../state/useMissionStore';
+
+interface PhotoDraft {
+  gps: string;
+  lat?: number;
+  lon?: number;
+  gpsAccuracyM?: number;
+  distanceSwum: string;
+  notes: string;
+  hasPhoto: boolean;
+  imageName: string;
+  imageFile?: File;
+  imagePreviewUrl: string;
+}
+
+const emptyPhotoDraft = (): PhotoDraft => ({
+  gps: '',
+  lat: undefined,
+  lon: undefined,
+  gpsAccuracyM: undefined,
+  distanceSwum: '',
+  notes: '',
+  hasPhoto: false,
+  imageName: '',
+  imageFile: undefined,
+  imagePreviewUrl: ''
+});
+
+function formatDueLabel(secondsUntil: number) {
+  const absoluteSeconds = Math.abs(secondsUntil);
+  const minutes = Math.floor(absoluteSeconds / 60);
+  const seconds = absoluteSeconds % 60;
+  const clock = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  return secondsUntil < 0 ? `Overdue ${clock}` : clock;
+}
 
 export function PartnersMedia() {
   const mission = useMissionStore((state) => state.mission);
@@ -18,48 +54,115 @@ export function PartnersMedia() {
   const completePartnerTask = useMissionStore((state) => state.completePartnerTask);
   const addWowsaPhoto = useMissionStore((state) => state.addWowsaPhoto);
   const removeWowsaPhoto = useMissionStore((state) => state.removeWowsaPhoto);
-  const [timerRunning, setTimerRunning] = useState(false);
-  const [timerSeconds, setTimerSeconds] = useState(30 * 60);
-  const [photoDraft, setPhotoDraft] = useState({
-    gps: '',
-    gpsAccuracyM: undefined as number | undefined,
-    distanceSwum: '',
-    notes: '',
-    hasPhoto: false,
-    imageName: '',
-    imageDataUrl: ''
-  });
+  const now = useNow(1000);
+  const [photoDraft, setPhotoDraft] = useState<PhotoDraft>(() => emptyPhotoDraft());
   const [gpsStatus, setGpsStatus] = useState('');
+  const [storageStatus, setStorageStatus] = useState('');
+  const [storedImageUrls, setStoredImageUrls] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    if (!timerRunning) {
-      return undefined;
+    if (window.location.hash !== '#wowsa-capture') {
+      return;
     }
 
-    const interval = window.setInterval(() => {
-      setTimerSeconds((seconds) => (seconds <= 1 ? 30 * 60 : seconds - 1));
-    }, 1000);
-
-    return () => window.clearInterval(interval);
-  }, [timerRunning]);
-
-  const timerLabel = `${Math.floor(timerSeconds / 60)
-    .toString()
-    .padStart(2, '0')}:${(timerSeconds % 60).toString().padStart(2, '0')}`;
-
-  const logPhoto = () => {
-    addWowsaPhoto({
-      gps: photoDraft.gps || mission.position.label,
-      gpsAccuracyM: photoDraft.gpsAccuracyM,
-      distanceSwum: photoDraft.distanceSwum,
-      notes: photoDraft.notes,
-      hasPhoto: photoDraft.hasPhoto,
-      imageName: photoDraft.imageName,
-      imageDataUrl: photoDraft.imageDataUrl,
-      actorId: activeActorId
+    window.requestAnimationFrame(() => {
+      document.getElementById('wowsa-capture')?.scrollIntoView({ block: 'start' });
     });
-    setTimerSeconds(30 * 60);
-    setPhotoDraft({ gps: '', gpsAccuracyM: undefined, distanceSwum: '', notes: '', hasPhoto: false, imageName: '', imageDataUrl: '' });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (photoDraft.imagePreviewUrl) {
+        URL.revokeObjectURL(photoDraft.imagePreviewUrl);
+      }
+    };
+  }, [photoDraft.imagePreviewUrl]);
+
+  const wowsaPhotos = mission.wowsaPhotos ?? [];
+
+  useEffect(() => {
+    let cancelled = false;
+    const urlsToRevoke: string[] = [];
+
+    async function loadStoredImages() {
+      const nextUrls: Record<string, string> = {};
+
+      await Promise.all(
+        wowsaPhotos.map(async (photo) => {
+          if (!photo.imageStorageKey || photo.imageDataUrl) {
+            return;
+          }
+
+          try {
+            const stored = await getEvidenceImage(photo.imageStorageKey);
+            if (stored?.blob) {
+              const url = URL.createObjectURL(stored.blob);
+              urlsToRevoke.push(url);
+              nextUrls[photo.id] = url;
+            }
+          } catch {
+            nextUrls[photo.id] = '';
+          }
+        })
+      );
+
+      if (!cancelled) {
+        setStoredImageUrls(nextUrls);
+      }
+    }
+
+    loadStoredImages();
+
+    return () => {
+      cancelled = true;
+      urlsToRevoke.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [wowsaPhotos]);
+
+  const nextWowsaDueAt = getWowsaNextDueAt(mission);
+  const secondsUntilNextPhoto = Math.floor((new Date(nextWowsaDueAt).getTime() - now.getTime()) / 1000);
+  const timerLabel = formatDueLabel(secondsUntilNextPhoto);
+
+  const resetDraft = () => {
+    if (photoDraft.imagePreviewUrl) {
+      URL.revokeObjectURL(photoDraft.imagePreviewUrl);
+    }
+    setPhotoDraft(emptyPhotoDraft());
+  };
+
+  const logPhoto = async () => {
+    const at = new Date().toISOString();
+    let imageStorageKey: string | undefined;
+    let imageSizeBytes: number | undefined;
+
+    setStorageStatus(photoDraft.imageFile ? 'Saving image locally...' : 'Saving evidence record...');
+
+    try {
+      if (photoDraft.imageFile) {
+        imageStorageKey = makeEvidenceImageKey(mission.id, at, photoDraft.imageFile.name);
+        await saveEvidenceImage(imageStorageKey, photoDraft.imageFile);
+        imageSizeBytes = photoDraft.imageFile.size;
+      }
+
+      addWowsaPhoto({
+        at,
+        gps: photoDraft.gps || mission.position.label,
+        lat: photoDraft.lat,
+        lon: photoDraft.lon,
+        gpsAccuracyM: photoDraft.gpsAccuracyM,
+        distanceSwum: photoDraft.distanceSwum,
+        notes: photoDraft.notes,
+        hasPhoto: photoDraft.hasPhoto,
+        imageName: photoDraft.imageName,
+        imageStorageKey,
+        imageSizeBytes,
+        actorId: activeActorId
+      });
+      setStorageStatus(imageStorageKey ? 'Evidence saved locally with image.' : 'Evidence record saved locally.');
+      resetDraft();
+    } catch (error) {
+      setStorageStatus(error instanceof Error ? error.message : 'Could not save evidence locally.');
+    }
   };
 
   const capturePhotoGps = async () => {
@@ -69,6 +172,8 @@ export function PartnersMedia() {
       setPhotoDraft((draft) => ({
         ...draft,
         gps: position.label,
+        lat: position.lat,
+        lon: position.lon,
         gpsAccuracyM: position.accuracyM
       }));
       setGpsStatus(`GPS captured ${position.accuracyM ? `±${Math.round(position.accuracyM)}m` : ''}`);
@@ -77,22 +182,35 @@ export function PartnersMedia() {
     }
   };
 
-  const handlePhotoFile = async (file?: File) => {
+  const handlePhotoFile = (file?: File) => {
     if (!file) {
       return;
     }
 
-    const imageDataUrl = await readFileAsDataUrl(file);
+    const imagePreviewUrl = URL.createObjectURL(file);
     setPhotoDraft((draft) => ({
       ...draft,
+      imagePreviewUrl,
+      imageFile: file,
       hasPhoto: true,
-      imageName: file.name,
-      imageDataUrl
+      imageName: file.name
     }));
+    setStorageStatus('Image ready for local save.');
+  };
+
+  const handleRemovePhoto = async (photoId: string, imageStorageKey?: string) => {
+    if (imageStorageKey) {
+      try {
+        await deleteEvidenceImage(imageStorageKey);
+      } catch {
+        setStorageStatus('Removed record. Could not remove cached image.');
+      }
+    }
+
+    removeWowsaPhoto(photoId);
   };
 
   const reportDate = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  const wowsaPhotos = mission.wowsaPhotos ?? [];
   const evidenceManifestHref = `data:application/json;charset=utf-8,${encodeURIComponent(buildWowsaEvidenceManifest(mission))}`;
   const routeCsvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(buildRouteCsv(mission))}`;
   const reportEmail = mission.session.operationsEmail || 'operations@example.com';
@@ -124,25 +242,22 @@ export function PartnersMedia() {
         <img className="logo-watermark" src={logoUrl} alt={reportPrefix} style={{ marginTop: 16 }} />
       </section>
 
-      <section className="panel span-8">
+      <section className="panel span-8" id="wowsa-capture">
         <div className="panel-header">
           <div>
             <h3 className="panel-title">WOWSA GPS Photo Evidence</h3>
-            <p className="panel-subtitle">Every record needs a photo, GPS, timestamp, and distance note.</p>
+            <p className="panel-subtitle">Save photo, GPS, timestamp, and distance evidence locally on this device.</p>
           </div>
           <Timer aria-hidden="true" />
         </div>
-        <div className={`critical-action compact ${timerSeconds <= 120 ? 'warning' : 'normal'}`} style={{ marginBottom: 16 }}>
-          <p className="page-kicker">Next Photo Due In</p>
+        <div className={`critical-action compact ${secondsUntilNextPhoto <= 0 ? 'critical' : secondsUntilNextPhoto <= 120 ? 'warning' : 'normal'}`} style={{ marginBottom: 16 }}>
+          <p className="page-kicker">Next GPS Photo</p>
           <h3 className="critical-title">{timerLabel}</h3>
+          <p className="critical-detail">Due at {formatClock(nextWowsaDueAt)} based on the last saved WOWSA photo.</p>
           <div className="critical-meta">
-            <button className="button primary" type="button" onClick={() => setTimerRunning((running) => !running)}>
-              <Timer aria-hidden="true" />
-              {timerRunning ? 'Pause' : 'Start'}
-            </button>
-            <button className="button" type="button" onClick={logPhoto}>
+            <button className="button primary" type="button" onClick={logPhoto}>
               <Camera aria-hidden="true" />
-              Mark photo taken
+              Save evidence record
             </button>
           </div>
         </div>
@@ -165,6 +280,24 @@ export function PartnersMedia() {
               placeholder="4.2 miles"
             />
           </label>
+          <label className="field-label">
+            GPS accuracy
+            <input className="input" value={photoDraft.gpsAccuracyM ? `±${Math.round(photoDraft.gpsAccuracyM)}m` : ''} readOnly placeholder="Capture GPS to fill accuracy" />
+          </label>
+          <label className="field-label">
+            Local image
+            <input className="input" value={photoDraft.imageName} readOnly placeholder="Take or attach a photo" />
+          </label>
+        </div>
+        <div className="two-column-form" style={{ marginTop: 12 }}>
+          <label className="field-label">
+            Latitude
+            <input className="input" value={photoDraft.lat ?? ''} readOnly placeholder="Capture GPS" />
+          </label>
+          <label className="field-label">
+            Longitude
+            <input className="input" value={photoDraft.lon ?? ''} readOnly placeholder="Capture GPS" />
+          </label>
         </div>
         <div className="row-actions" style={{ marginTop: 12 }}>
           <button className="button" type="button" onClick={capturePhotoGps}>
@@ -182,11 +315,15 @@ export function PartnersMedia() {
               onChange={(event) => handlePhotoFile(event.target.files?.[0])}
             />
           </label>
+          <button className="button primary" type="button" onClick={logPhoto}>
+            <Plus aria-hidden="true" />
+            Save evidence
+          </button>
           {gpsStatus ? <span className="row-meta">{gpsStatus}</span> : null}
-          {photoDraft.imageName ? <span className="role-pill">{photoDraft.imageName}</span> : null}
+          {storageStatus ? <span className="row-meta">{storageStatus}</span> : null}
         </div>
-        {photoDraft.imageDataUrl ? (
-          <img className="evidence-preview" src={photoDraft.imageDataUrl} alt="Selected WOWSA evidence" />
+        {photoDraft.imagePreviewUrl ? (
+          <img className="evidence-preview" src={photoDraft.imagePreviewUrl} alt="Selected WOWSA evidence" />
         ) : null}
         <label className="field-label" style={{ marginTop: 12 }}>
           Notes
@@ -198,10 +335,6 @@ export function PartnersMedia() {
           />
         </label>
         <div className="row-actions" style={{ marginTop: 12 }}>
-          <button className="button primary" type="button" onClick={logPhoto}>
-            <Plus aria-hidden="true" />
-            Add photo log
-          </button>
           <a className="button" href={evidenceManifestHref} download="wowsa-evidence-manifest.json">
             <CheckCircle2 aria-hidden="true" />
             Evidence JSON
@@ -224,37 +357,49 @@ export function PartnersMedia() {
         </div>
         {wowsaPhotos.length ? (
           <ul className="row-list" style={{ marginTop: 16 }}>
-            {wowsaPhotos.map((photo) => (
-              <li className="list-row" key={photo.id}>
-                <div className="split-row">
-                  <div>
-                    <div className="row-title">Photo #{photo.number}</div>
-                    <div className="row-meta">
-                      {formatClock(photo.at)} · {photo.gps || 'GPS not set'}
-                      {photo.gpsAccuracyM ? ` · ±${Math.round(photo.gpsAccuracyM)}m` : ''} · {photo.distanceSwum || 'distance not set'}
+            {wowsaPhotos.map((photo) => {
+              const imageUrl = photo.imageDataUrl || storedImageUrls[photo.id];
+
+              return (
+                <li className="list-row" key={photo.id}>
+                  <div className="split-row">
+                    <div>
+                      <div className="row-title">Photo #{photo.number}</div>
+                      <div className="row-meta">
+                        {formatClock(photo.at)} · {photo.gps || 'GPS not set'}
+                        {photo.gpsAccuracyM ? ` · ±${Math.round(photo.gpsAccuracyM)}m` : ''} · {photo.distanceSwum || 'distance not set'}
+                      </div>
+                      <div className="row-meta">
+                        {photo.imageName || 'No image name recorded'}
+                        {photo.imageStorageKey ? ' · stored in browser evidence cache' : ''}
+                      </div>
                     </div>
-                    <div className="row-meta">{photo.imageName || 'No image name recorded'}</div>
+                    <div className="row-actions">
+                      <span className={photo.evidenceStatus === 'ready' ? 'status-pill done' : 'status-pill overdue'}>
+                        {photo.evidenceStatus}
+                      </span>
+                      {imageUrl ? (
+                        <a className="button" href={imageUrl} download={photo.imageName || `wowsa-photo-${photo.number}.jpg`}>
+                          Image
+                        </a>
+                      ) : null}
+                      <button className="button-icon" type="button" aria-label={`Remove photo ${photo.number}`} onClick={() => handleRemovePhoto(photo.id, photo.imageStorageKey)}>
+                        <Trash2 aria-hidden="true" />
+                      </button>
+                    </div>
                   </div>
-                  <div className="row-actions">
-                    <span className={photo.evidenceStatus === 'ready' ? 'status-pill done' : 'status-pill overdue'}>
-                      {photo.evidenceStatus}
-                    </span>
-                    <button className="button-icon" type="button" aria-label={`Remove photo ${photo.number}`} onClick={() => removeWowsaPhoto(photo.id)}>
-                      <Trash2 aria-hidden="true" />
-                    </button>
-                  </div>
-                </div>
-                {photo.imageDataUrl ? <img className="evidence-thumb" src={photo.imageDataUrl} alt={`WOWSA evidence ${photo.number}`} /> : null}
-                <ul className="evidence-checks" aria-label={`Evidence checks for photo ${photo.number}`}>
-                  {getWowsaEvidenceChecks(photo).map((check) => (
-                    <li className={check.done ? 'evidence-check done' : 'evidence-check missing'} key={check.id}>
-                      <CheckCircle2 aria-hidden="true" />
-                      {check.label}
-                    </li>
-                  ))}
-                </ul>
-              </li>
-            ))}
+                  {imageUrl ? <img className="evidence-thumb" src={imageUrl} alt={`WOWSA evidence ${photo.number}`} /> : null}
+                  <ul className="evidence-checks" aria-label={`Evidence checks for photo ${photo.number}`}>
+                    {getWowsaEvidenceChecks(photo).map((check) => (
+                      <li className={check.done ? 'evidence-check done' : 'evidence-check missing'} key={check.id}>
+                        <CheckCircle2 aria-hidden="true" />
+                        {check.label}
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              );
+            })}
           </ul>
         ) : null}
       </section>

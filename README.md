@@ -13,6 +13,7 @@ Local-first PWA for coordinating high-risk endurance swim expeditions, now deliv
 - `npm run build` type-checks and builds the production PWA.
 - `npm run share` starts a static preview + Cloudflare tunnel and prints a share URL.
 - `npm run status` shows git sync, local ports, tunnel state, and the current share URL.
+- `npm run session:up` runs dev auto-ensure, attempts share setup, then prints session status.
 
 ## Codespaces
 

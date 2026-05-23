@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { addMinutes } from 'date-fns';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
@@ -11,23 +11,42 @@ function renderRoute(path = '/') {
   return render(<RouterProvider router={router} />);
 }
 
+function mockGeolocationSuccess() {
+  Object.defineProperty(navigator, 'geolocation', {
+    configurable: true,
+    value: {
+      getCurrentPosition: vi.fn((success) =>
+        success({
+          coords: {
+            latitude: 33.71,
+            longitude: -118.28,
+            accuracy: 7
+          }
+        })
+      )
+    }
+  });
+}
+
+function mockGeolocationFailure() {
+  Object.defineProperty(navigator, 'geolocation', {
+    configurable: true,
+    value: {
+      getCurrentPosition: vi.fn((_success, failure) =>
+        failure({
+          code: 1,
+          PERMISSION_DENIED: 1,
+          TIMEOUT: 3
+        })
+      )
+    }
+  });
+}
+
 describe('mission-critical flows', () => {
   beforeEach(() => {
     localStorage.clear();
-    Object.defineProperty(navigator, 'geolocation', {
-      configurable: true,
-      value: {
-        getCurrentPosition: vi.fn((success) =>
-          success({
-            coords: {
-              latitude: 33.71,
-              longitude: -118.28,
-              accuracy: 7
-            }
-          })
-        )
-      }
-    });
+    mockGeolocationSuccess();
     Object.defineProperty(URL, 'createObjectURL', {
       configurable: true,
       value: vi.fn(() => 'blob:wowsa-test')
@@ -94,6 +113,7 @@ describe('mission-critical flows', () => {
     expect(await screen.findByText('WOWSA GPS Photo Evidence')).toBeInTheDocument();
     await user.upload(screen.getByLabelText(/Add image/i), new File(['photo'], 'wowsa.jpg', { type: 'image/jpeg' }));
     await user.type(screen.getByLabelText(/Cumulative distance/i), '4.2 miles');
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save evidence' })).toBeEnabled());
     await user.click(screen.getByRole('button', { name: 'Save evidence' }));
 
     const photo = useMissionStore.getState().mission.wowsaPhotos[0];
@@ -107,6 +127,55 @@ describe('mission-critical flows', () => {
       evidenceStatus: 'ready'
     });
     expect(useMissionStore.getState().mission.timeline[0].summary).toBe('WOWSA photo #1 logged');
+  });
+
+  it('blocks WOWSA evidence save when photo GPS is missing', async () => {
+    mockGeolocationFailure();
+    const user = userEvent.setup();
+    renderRoute('/wowsa');
+
+    expect(await screen.findByText('WOWSA GPS Photo Evidence')).toBeInTheDocument();
+    await user.upload(screen.getByLabelText(/Add image/i), new File(['photo'], 'blocked.jpg', { type: 'image/jpeg' }));
+
+    await screen.findByText(/GPS permission was denied/i);
+    expect(screen.getByRole('button', { name: 'Save evidence' })).toBeDisabled();
+    expect(useMissionStore.getState().mission.wowsaPhotos).toHaveLength(0);
+  });
+
+  it('allows manual coordinates as the WOWSA GPS backup', async () => {
+    mockGeolocationFailure();
+    const user = userEvent.setup();
+    renderRoute('/wowsa');
+
+    expect(await screen.findByText('WOWSA GPS Photo Evidence')).toBeInTheDocument();
+    await user.upload(screen.getByLabelText(/Add image/i), new File(['photo'], 'manual.jpg', { type: 'image/jpeg' }));
+    await user.type(screen.getByLabelText(/Latitude/i), '33.71');
+    await user.type(screen.getByLabelText(/Longitude/i), '-118.28');
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save evidence' })).toBeEnabled());
+    await user.click(screen.getByRole('button', { name: 'Save evidence' }));
+
+    expect(useMissionStore.getState().mission.wowsaPhotos[0]).toMatchObject({
+      gps: '33.71000° N, 118.28000° W',
+      lat: 33.71,
+      lon: -118.28,
+      imageName: 'manual.jpg',
+      evidenceStatus: 'ready'
+    });
+  });
+
+  it('keeps WOWSA evidence blocked for invalid manual coordinates', async () => {
+    mockGeolocationFailure();
+    const user = userEvent.setup();
+    renderRoute('/wowsa');
+
+    expect(await screen.findByText('WOWSA GPS Photo Evidence')).toBeInTheDocument();
+    await user.upload(screen.getByLabelText(/Add image/i), new File(['photo'], 'invalid.jpg', { type: 'image/jpeg' }));
+    await user.type(screen.getByLabelText(/Latitude/i), '91');
+    await user.type(screen.getByLabelText(/Longitude/i), '-118.28');
+
+    expect(screen.getByRole('button', { name: 'Save evidence' })).toBeDisabled();
+    expect(useMissionStore.getState().mission.wowsaPhotos).toHaveLength(0);
   });
 
   it('shows and completes planned swim timeline items', async () => {

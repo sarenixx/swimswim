@@ -25,6 +25,8 @@ interface PhotoDraft {
   gps: string;
   lat?: number;
   lon?: number;
+  latText: string;
+  lonText: string;
   gpsAccuracyM?: number;
   distanceSwum: string;
   notes: string;
@@ -38,6 +40,8 @@ const emptyPhotoDraft = (): PhotoDraft => ({
   gps: '',
   lat: undefined,
   lon: undefined,
+  latText: '',
+  lonText: '',
   gpsAccuracyM: undefined,
   distanceSwum: '',
   notes: '',
@@ -55,9 +59,14 @@ function formatDueLabel(secondsUntil: number) {
   return secondsUntil < 0 ? `Overdue ${clock}` : clock;
 }
 
-function numberFromCoordinate(value: string) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : undefined;
+function numberFromCoordinate(value: string, min: number, max: number) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) && parsed >= min && parsed <= max ? parsed : undefined;
 }
 
 export function PartnersMedia() {
@@ -150,9 +159,8 @@ export function PartnersMedia() {
   };
 
   const getDraftCoordinates = (draft: PhotoDraft) => {
-    const parsedGps = parseGpsLabel(draft.gps);
-    const lat = draft.lat ?? parsedGps?.lat;
-    const lon = draft.lon ?? parsedGps?.lon;
+    const lat = draft.lat;
+    const lon = draft.lon;
 
     return lat !== undefined && lon !== undefined
       ? {
@@ -172,6 +180,8 @@ export function PartnersMedia() {
       gps: position.label,
       lat: position.lat,
       lon: position.lon,
+      latText: String(position.lat),
+      lonText: String(position.lon),
       gpsAccuracyM: position.accuracyM
     }));
     setGpsStatus(`GPS captured ${position.accuracyM ? `±${Math.round(position.accuracyM)}m` : ''}`);
@@ -296,6 +306,8 @@ export function PartnersMedia() {
   };
 
   const reportDate = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const draftCoordinates = getDraftCoordinates(photoDraft);
+  const canSaveEvidence = Boolean(photoDraft.imageFile && draftCoordinates && !isSavingEvidence);
   const evidenceManifestHref = `data:application/json;charset=utf-8,${encodeURIComponent(buildWowsaEvidenceManifest(mission))}`;
   const routeCsvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(buildRouteCsv(mission))}`;
   const reportEmail = mission.session.operationsEmail || 'operations@example.com';
@@ -357,8 +369,11 @@ export function PartnersMedia() {
                 setPhotoDraft((draft) => ({
                   ...draft,
                   gps: event.target.value,
-                  lat: parsed?.lat ?? draft.lat,
-                  lon: parsed?.lon ?? draft.lon
+                  lat: parsed?.lat,
+                  lon: parsed?.lon,
+                  latText: parsed ? String(parsed.lat) : '',
+                  lonText: parsed ? String(parsed.lon) : '',
+                  gpsAccuracyM: parsed ? draft.gpsAccuracyM : undefined
                 }));
               }}
               placeholder={mission.position.label}
@@ -388,13 +403,15 @@ export function PartnersMedia() {
             <input
               className="input"
               inputMode="decimal"
-              value={photoDraft.lat ?? ''}
+              value={photoDraft.latText}
               onChange={(event) => {
-                const lat = numberFromCoordinate(event.target.value);
+                const lat = numberFromCoordinate(event.target.value, -90, 90);
                 setPhotoDraft((draft) => ({
                   ...draft,
+                  latText: event.target.value,
                   lat,
-                  gps: lat !== undefined && draft.lon !== undefined ? formatGpsLabel(lat, draft.lon) : draft.gps
+                  gps: lat !== undefined && draft.lon !== undefined ? formatGpsLabel(lat, draft.lon) : '',
+                  gpsAccuracyM: undefined
                 }));
               }}
               placeholder="33.71000"
@@ -405,13 +422,15 @@ export function PartnersMedia() {
             <input
               className="input"
               inputMode="decimal"
-              value={photoDraft.lon ?? ''}
+              value={photoDraft.lonText}
               onChange={(event) => {
-                const lon = numberFromCoordinate(event.target.value);
+                const lon = numberFromCoordinate(event.target.value, -180, 180);
                 setPhotoDraft((draft) => ({
                   ...draft,
+                  lonText: event.target.value,
                   lon,
-                  gps: draft.lat !== undefined && lon !== undefined ? formatGpsLabel(draft.lat, lon) : draft.gps
+                  gps: draft.lat !== undefined && lon !== undefined ? formatGpsLabel(draft.lat, lon) : '',
+                  gpsAccuracyM: undefined
                 }));
               }}
               placeholder="-118.28000"
@@ -434,7 +453,7 @@ export function PartnersMedia() {
               onChange={(event) => handlePhotoFile(event.target.files?.[0])}
             />
           </label>
-          <button className="button" type="button" onClick={logPhoto} disabled={isSavingEvidence}>
+          <button className="button" type="button" onClick={logPhoto} disabled={!canSaveEvidence}>
             <Plus aria-hidden="true" />
             {isSavingEvidence ? 'Saving...' : 'Save evidence'}
           </button>

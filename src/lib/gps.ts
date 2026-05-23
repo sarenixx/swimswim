@@ -30,6 +30,10 @@ export function parseGpsLabel(value: string): Pick<DevicePosition, 'lat' | 'lon'
     return undefined;
   }
 
+  if (Math.abs(lat) > 90 || Math.abs(lon) > 180) {
+    return undefined;
+  }
+
   return {
     lat,
     lon,

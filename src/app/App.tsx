@@ -1,12 +1,19 @@
 import { useEffect } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { Radio, RotateCcw, Wifi, WifiOff } from 'lucide-react';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Copy, Radio, RotateCcw, Wifi, WifiOff } from 'lucide-react';
 import logoUrl from '../assets/logo.webp';
 import { roleLabels } from '../state/seed';
-import { useMissionStore } from '../state/useMissionStore';
-import { navItems, primaryMobileNavItems } from './router';
+import { createLiveStateFromTemplate, useLiveMissionStore, useMissionStore } from '../state/useMissionStore';
+import {
+  buildMissionNavItems,
+  getAlternateDeliverableLink,
+  getDeliverableBrand,
+  getDeliverableTitle,
+  getPrimaryMobileNavItems
+} from './missionNavigation';
 
 export function AppShell() {
+  const navigate = useNavigate();
   const location = useLocation();
   const mission = useMissionStore((state) => state.mission);
   const activeActorId = useMissionStore((state) => state.activeActorId);
@@ -17,6 +24,21 @@ export function AppShell() {
   const setSelectedRole = useMissionStore((state) => state.setSelectedRole);
   const setOnlineStatus = useMissionStore((state) => state.setOnlineStatus);
   const resetMission = useMissionStore((state) => state.resetMission);
+  const navItems = buildMissionNavItems(mission.mode);
+  const primaryMobileNavItems = getPrimaryMobileNavItems(navItems);
+  const deliverableTitle = getDeliverableTitle(mission.mode);
+  const deliverableBrand = getDeliverableBrand(mission.mode);
+  const alternateDeliverable = getAlternateDeliverableLink(mission.mode);
+  const inTemplateMode = mission.mode === 'template';
+
+  const duplicateTemplateToLive = () => {
+    if (!inTemplateMode) {
+      return;
+    }
+
+    useLiveMissionStore.setState(createLiveStateFromTemplate(mission));
+    navigate('/');
+  };
 
   useEffect(() => {
     const updateOnline = () => setOnlineStatus(navigator.onLine);
@@ -28,22 +50,23 @@ export function AppShell() {
     };
   }, [setOnlineStatus]);
 
-  const currentNavItem = navItems.find((item) => {
-    if (item.to === '/') {
-      return location.pathname === '/';
+  const currentNavItem = navItems.find((item, index) => {
+    if (index === 0) {
+      return location.pathname === item.to;
     }
 
-    return location.pathname.startsWith(item.to);
+    return location.pathname === item.to || location.pathname.startsWith(`${item.to}/`);
   });
 
   return (
     <div className="app-shell">
       <aside className="sidebar" aria-label="Mission navigation">
         <div className="brand">
-          <img src={logoUrl} alt="Swim California" />
+          <img src={logoUrl} alt={deliverableBrand} />
           <div>
-            <h1 className="brand-title">Swim California</h1>
+            <h1 className="brand-title">{deliverableBrand}</h1>
             <p className="brand-subtitle">{mission.name}</p>
+            <p className="brand-context">{deliverableTitle}</p>
           </div>
         </div>
 
@@ -88,11 +111,26 @@ export function AppShell() {
       <main className="main-frame">
         <header className="topbar">
           <div>
-            <p className="page-kicker">Checklist · Tracking · WOWSA Evidence</p>
+            <p className="page-kicker">{deliverableTitle}</p>
             <h2 className="page-title">{currentNavItem?.title ?? 'Mission Control'}</h2>
           </div>
 
           <div className="topbar-actions">
+            {inTemplateMode ? (
+              <>
+                <button className="button" type="button" onClick={duplicateTemplateToLive}>
+                  <Copy aria-hidden="true" />
+                  Duplicate To Live
+                </button>
+                <button className="button" type="button" onClick={resetMission}>
+                  <RotateCcw aria-hidden="true" />
+                  Reset Template
+                </button>
+              </>
+            ) : null}
+            <NavLink className="button" to={alternateDeliverable.to}>
+              {alternateDeliverable.label}
+            </NavLink>
             <span className={online ? 'sync-pill online' : 'sync-pill offline'}>
               {online ? 'Online' : `${offlineQueue.length} queued offline`}
             </span>
@@ -105,9 +143,11 @@ export function AppShell() {
             >
               {online ? <Wifi aria-hidden="true" /> : <WifiOff aria-hidden="true" />}
             </button>
-            <button className="button-icon" type="button" title="Reset demo mission" aria-label="Reset demo mission" onClick={resetMission}>
-              <RotateCcw aria-hidden="true" />
-            </button>
+            {!inTemplateMode ? (
+              <button className="button-icon" type="button" title="Reset live mission" aria-label="Reset live mission" onClick={resetMission}>
+                <RotateCcw aria-hidden="true" />
+              </button>
+            ) : null}
             <span className={`status-pill ${mission.status}`}>
               <Radio aria-hidden="true" size={14} />
               {mission.status}

@@ -5,7 +5,7 @@ const blank = (value?: string | number) => (value === undefined || value === '' 
 
 function sessionBlock(mission: Mission) {
   const session = mission.session;
-  return `Swim California - Daily Operations Report
+  return `${mission.name} - Daily Operations Report
 Generated: ${format(new Date(), 'PPpp')}
 Mission: ${mission.name}
 Swimmer: ${blank(session.swimmerName)}
@@ -19,7 +19,8 @@ GPS End: ${blank(session.gpsEnd)}
 Primary Vessel: ${blank(session.primaryVessel)}
 Support Vessels: ${blank(session.supportVessels)}
 Lead Crew: ${blank(session.leadCrew)}
-Completed By: ${blank(session.completedBy)}`;
+Completed By: ${blank(session.completedBy)}
+Operations Email: ${blank(session.operationsEmail)}`;
 }
 
 function checklistBlock(mission: Mission) {

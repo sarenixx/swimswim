@@ -3,6 +3,7 @@ import { Camera, ClipboardCheck, Clock3, MapPin, PlayCircle, Ship, UserRound, Ut
 import { FormEvent, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getDevicePosition } from '../../lib/gps';
+import { getMissionPath } from '../../app/missionNavigation';
 import { roleLabels } from '../../state/seed';
 import { formatClock } from '../../state/selectors';
 import type { MissionSetupCrewAssignment, MissionSetupInput } from '../../state/types';
@@ -46,6 +47,7 @@ export function MissionSetup() {
     supportVessels: mission.session.supportVessels,
     leadCrew: mission.session.leadCrew,
     completedBy: mission.session.completedBy,
+    operationsEmail: mission.session.operationsEmail,
     feedingIntervalMinutes: String(mission.feedingIntervalMinutes),
     wowsaPhotoIntervalMinutes: String(mission.wowsaPhotoIntervalMinutes ?? 30),
     crew: mission.crew.map<MissionSetupCrewAssignment>((member) => ({
@@ -117,7 +119,7 @@ export function MissionSetup() {
     };
 
     startMissionFromSetup(input);
-    navigate('/');
+    navigate(getMissionPath(mission.mode));
   };
 
   return (
@@ -276,6 +278,10 @@ export function MissionSetup() {
           <label className="field-label">
             <span>Completed by</span>
             <input className="input" value={setup.completedBy} onChange={(event) => updateSetup('completedBy', event.target.value)} />
+          </label>
+          <label className="field-label">
+            <span>Operations email</span>
+            <input className="input" value={setup.operationsEmail} onChange={(event) => updateSetup('operationsEmail', event.target.value)} />
           </label>
         </div>
       </section>

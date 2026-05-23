@@ -19,7 +19,7 @@ export const emergencyLabels: Record<EmergencyKind, string> = {
 
 const iso = (date: Date) => date.toISOString();
 
-export function buildSeedMission(now = new Date()): Mission {
+export function buildLiveSeedMission(now = new Date()): Mission {
   const startedAt = subMinutes(now, 84);
   const shiftStart = subHours(now, 1);
   const shiftEnd = addHours(now, 2);
@@ -28,6 +28,7 @@ export function buildSeedMission(now = new Date()): Mission {
 
   return {
     id: 'mission-catalina-qualifier',
+    mode: 'live',
     name: 'Catalina Channel Qualifier',
     status: 'active',
     startedAt: iso(startedAt),
@@ -464,7 +465,8 @@ export function buildSeedMission(now = new Date()): Mission {
       primaryVessel: 'Support vessel Bravo',
       supportVessels: 'Kayak 1, Kayak 2, zodiac standby',
       leadCrew: 'Maya Chen, Tom Reyes',
-      completedBy: 'Maya Chen'
+      completedBy: 'Maya Chen',
+      operationsEmail: 'swimcalifornia2026@gmail.com'
     },
     medicalVitals: {
       heartRateBpm: '58',
@@ -508,4 +510,492 @@ export function buildSeedMission(now = new Date()): Mission {
       }
     ]
   };
+}
+
+export function buildTemplateSeedMission(now = new Date()): Mission {
+  const startedAt = subMinutes(now, 58);
+  const shiftStart = subHours(now, 2);
+  const shiftEnd = addHours(now, 2);
+  const nextShiftStart = addHours(now, 2);
+  const nextShiftEnd = addHours(now, 6);
+
+  return {
+    id: 'mission-template-endurance-swim',
+    mode: 'template',
+    name: 'Endurance Swim Expedition OS Template',
+    status: 'active',
+    startedAt: iso(startedAt),
+    feedingIntervalMinutes: 30,
+    wowsaPhotoIntervalMinutes: 30,
+    lastFeedingAt: iso(subMinutes(now, 27)),
+    nextFeedingAt: iso(addMinutes(now, 3)),
+    position: {
+      lat: 36.615,
+      lon: -121.91,
+      label: '[Current GPS checkpoint label]',
+      updatedAt: iso(subMinutes(now, 2))
+    },
+    conditions: {
+      observedAt: iso(subMinutes(now, 5)),
+      airTempF: 63,
+      waterTempF: 58,
+      windKts: 10,
+      currentKts: 0.6,
+      visibilityNm: 5,
+      swellFt: 2,
+      summary: 'Sample operating conditions for template walkthrough'
+    },
+    crew: [
+      {
+        id: 'crew-captain',
+        name: 'Crew Captain [Replace]',
+        role: 'captain',
+        phone: '+1 000 000 0001',
+        shiftStart: iso(shiftStart),
+        shiftEnd: iso(shiftEnd),
+        responsibilities: ['Command authority', 'Go/no-go decision', 'Broadcast ownership']
+      },
+      {
+        id: 'crew-safety',
+        name: 'Safety Lead [Replace]',
+        role: 'safety',
+        phone: '+1 000 000 0002',
+        shiftStart: iso(shiftStart),
+        shiftEnd: iso(shiftEnd),
+        responsibilities: ['Hazard watch', 'Check-in cadence', 'Incident documentation']
+      },
+      {
+        id: 'crew-medical',
+        name: 'Medical Lead [Replace]',
+        role: 'medical',
+        phone: '+1 000 000 0003',
+        shiftStart: iso(shiftStart),
+        shiftEnd: iso(nextShiftEnd),
+        responsibilities: ['Medical readiness', 'Condition assessments', 'Recovery workflow']
+      },
+      {
+        id: 'crew-kayak-1',
+        name: 'Support Kayak 1 [Replace]',
+        role: 'kayak-1',
+        phone: '+1 000 000 0004',
+        shiftStart: iso(shiftStart),
+        shiftEnd: iso(shiftEnd),
+        responsibilities: ['Primary escort', 'Feeding handoff', 'Stroke observation']
+      },
+      {
+        id: 'crew-kayak-2',
+        name: 'Support Kayak 2 [Replace]',
+        role: 'kayak-2',
+        phone: '+1 000 000 0005',
+        shiftStart: iso(nextShiftStart),
+        shiftEnd: iso(nextShiftEnd),
+        responsibilities: ['Relief escort', 'Backup nutrition', 'Visual confirmation']
+      },
+      {
+        id: 'crew-boat',
+        name: 'Boat Lead [Replace]',
+        role: 'boat',
+        phone: '+1 000 000 0006',
+        shiftStart: iso(shiftStart),
+        shiftEnd: iso(nextShiftEnd),
+        responsibilities: ['Vessel operations', 'Navigation track', 'Radio watch']
+      },
+      {
+        id: 'crew-media',
+        name: 'Evidence Lead [Replace]',
+        role: 'media',
+        phone: '+1 000 000 0007',
+        shiftStart: iso(shiftStart),
+        shiftEnd: iso(shiftEnd),
+        responsibilities: ['Certification photos', 'Partner deliverables', 'Media archive']
+      }
+    ],
+    checklistItems: [
+      {
+        id: 'pre-boat-ready',
+        category: 'pre-swim',
+        title: 'Support vessel systems verified (fuel, radio, nav, reserve lighting)',
+        ownerId: 'crew-boat',
+        completedAt: iso(subMinutes(now, 90)),
+        completedBy: 'crew-boat',
+        status: 'done'
+      },
+      {
+        id: 'pre-weather-route',
+        category: 'pre-swim',
+        title: 'Go/no-go weather thresholds documented for this venue',
+        ownerId: 'crew-captain',
+        completedAt: iso(subMinutes(now, 88)),
+        completedBy: 'crew-captain',
+        status: 'done'
+      },
+      {
+        id: 'pre-medical-readiness',
+        category: 'pre-swim',
+        title: 'Medical extraction kit, warming plan, and recovery path confirmed',
+        ownerId: 'crew-medical',
+        completedAt: iso(subMinutes(now, 86)),
+        completedBy: 'crew-medical',
+        status: 'done'
+      },
+      {
+        id: 'pre-vhf-channel-16',
+        category: 'pre-swim',
+        title: 'Primary emergency channel and backup channel assigned',
+        ownerId: 'crew-boat',
+        completedAt: iso(subMinutes(now, 84)),
+        completedBy: 'crew-boat',
+        status: 'done'
+      },
+      {
+        id: 'pre-route-loaded',
+        category: 'pre-swim',
+        title: 'Route map loaded with start, midpoint, and extraction coordinates',
+        ownerId: 'crew-boat',
+        completedAt: iso(subMinutes(now, 82)),
+        completedBy: 'crew-boat',
+        status: 'done'
+      },
+      {
+        id: 'pre-float-plan-filed',
+        category: 'pre-swim',
+        title: 'Float plan submitted to local shore contact or authority',
+        ownerId: 'crew-captain',
+        completedAt: iso(subMinutes(now, 80)),
+        completedBy: 'crew-captain',
+        status: 'done'
+      },
+      {
+        id: 'pre-pfds-accounted',
+        category: 'pre-swim',
+        title: 'Safety gear counted: PFDs, throwable, signaling, fire control',
+        ownerId: 'crew-safety',
+        completedAt: iso(subMinutes(now, 78)),
+        completedBy: 'crew-safety',
+        status: 'done'
+      },
+      {
+        id: 'pre-fuel-reserve',
+        category: 'pre-swim',
+        title: 'Fuel plan includes route, contingency, and reserve margin',
+        ownerId: 'crew-boat',
+        completedAt: iso(subMinutes(now, 76)),
+        completedBy: 'crew-boat',
+        status: 'done'
+      },
+      {
+        id: 'pre-marine-forecast',
+        category: 'pre-swim',
+        title: 'Marine forecast reviewed with abort thresholds and escalation owner',
+        ownerId: 'crew-safety',
+        completedAt: iso(subMinutes(now, 74)),
+        completedBy: 'crew-safety',
+        status: 'done'
+      },
+      {
+        id: 'pre-water-temp',
+        category: 'pre-swim',
+        title: 'Water temperature baseline logged against swimmer prep plan',
+        ownerId: 'crew-medical',
+        completedAt: iso(subMinutes(now, 72)),
+        completedBy: 'crew-medical',
+        status: 'done'
+      },
+      {
+        id: 'pre-wildlife-scan',
+        category: 'pre-swim',
+        title: 'Known local wildlife risk and response protocol reviewed',
+        ownerId: 'crew-safety',
+        completedAt: iso(subMinutes(now, 70)),
+        completedBy: 'crew-safety',
+        status: 'done'
+      },
+      {
+        id: 'pre-feeding-schedule',
+        category: 'pre-swim',
+        title: 'Swimmer nutrition & feeding strategy confirmed with all escort roles',
+        ownerId: 'crew-kayak-1',
+        completedAt: iso(subMinutes(now, 68)),
+        completedBy: 'crew-kayak-1',
+        status: 'done'
+      },
+      {
+        id: 'pre-abort-protocol',
+        category: 'pre-swim',
+        title: 'Abort criteria and extraction sequence acknowledged by full team',
+        ownerId: 'crew-captain',
+        completedAt: iso(subMinutes(now, 66)),
+        completedBy: 'crew-captain',
+        status: 'done'
+      },
+      {
+        id: 'in-kayak-check',
+        category: 'in-swim',
+        title: 'Support crew schedule check-in (rotate roles and confirm readiness)',
+        ownerId: 'crew-safety',
+        dueAt: iso(addMinutes(now, 8)),
+        status: 'pending'
+      },
+      {
+        id: 'in-feeding-readiness',
+        category: 'in-swim',
+        title: 'Prepare next feeding bottle and backup nutrition option',
+        ownerId: 'crew-kayak-1',
+        dueAt: iso(addMinutes(now, 1)),
+        status: 'pending'
+      },
+      {
+        id: 'in-condition-scan',
+        category: 'in-swim',
+        title: 'Structured swimmer condition scan with concise note',
+        ownerId: 'crew-medical',
+        dueAt: iso(addMinutes(now, 6)),
+        status: 'pending'
+      },
+      {
+        id: 'post-recovery',
+        category: 'post-swim',
+        title: 'Post-swim recovery workflow: warming, vitals, nutrition, and observations',
+        ownerId: 'crew-medical',
+        status: 'pending'
+      },
+      {
+        id: 'post-wowsa-review',
+        category: 'post-swim',
+        title: 'Certification evidence review (photo + GPS + timestamp + distance)',
+        ownerId: 'crew-media',
+        status: 'pending'
+      },
+      {
+        id: 'post-debrief',
+        category: 'post-swim',
+        title: 'Operational debrief: wins, risks, near misses, and next-iteration changes',
+        ownerId: 'crew-captain',
+        status: 'pending'
+      },
+      {
+        id: 'mental-captain-load',
+        category: 'mental-health',
+        title: 'Decision-load check: captain confirms cognitive bandwidth and backup plan',
+        ownerId: 'crew-safety',
+        dueAt: iso(addMinutes(now, 20)),
+        status: 'pending'
+      },
+      {
+        id: 'mental-team-rotation',
+        category: 'mental-health',
+        title: 'Crew rotation wellness check for off-duty decompression window',
+        ownerId: 'crew-captain',
+        dueAt: iso(addMinutes(now, 32)),
+        status: 'pending'
+      },
+      {
+        id: 'mental-swimmer-supported',
+        category: 'mental-health',
+        title: 'Swimmer emotional support check with agreed communication cue',
+        ownerId: 'crew-medical',
+        dueAt: iso(addMinutes(now, 40)),
+        status: 'pending'
+      },
+      {
+        id: 'mental-concerns-communicated',
+        category: 'mental-health',
+        title: 'Open concerns captured and routed to the right role in real time',
+        ownerId: 'crew-medical',
+        dueAt: iso(addMinutes(now, 46)),
+        status: 'pending'
+      }
+    ],
+    timeline: [
+      {
+        id: 'event-template-onboarding',
+        type: 'note',
+        at: iso(subMinutes(now, 57)),
+        actorId: 'crew-captain',
+        summary: 'Template loaded for customization',
+        detail: 'Replace bracketed fields, assign real contacts, then run Mission Setup before operations.',
+        severity: 'info'
+      },
+      {
+        id: 'event-template-strategy',
+        type: 'note',
+        at: iso(subMinutes(now, 42)),
+        actorId: 'crew-captain',
+        summary: 'Strategy framework prompt',
+        detail: 'Capture route checkpoints, weather thresholds, feeding mix, and abort decision triggers.',
+        severity: 'info'
+      },
+      {
+        id: 'event-template-feeding',
+        type: 'feeding',
+        at: iso(subMinutes(now, 27)),
+        actorId: 'crew-kayak-1',
+        summary: 'Sample feeding event logged',
+        detail: 'Demonstrates cadence tracking and timestamped completion.',
+        severity: 'info'
+      },
+      {
+        id: 'event-template-checkin',
+        type: 'check-in',
+        at: iso(subMinutes(now, 8)),
+        actorId: 'crew-safety',
+        summary: 'Sample team check-in',
+        detail: 'Use this pattern to log every cadence confirmation.',
+        severity: 'info'
+      }
+    ],
+    alerts: [],
+    swimmerConditions: [
+      {
+        id: 'condition-template-seed',
+        at: iso(subMinutes(now, 14)),
+        actorId: 'crew-medical',
+        level: 'steady',
+        note: 'Sample condition entry. Replace with real swimmer status language.'
+      }
+    ],
+    contacts: [
+      {
+        id: 'contact-coast-guard',
+        name: '[Rescue Coordination Contact]',
+        role: 'Emergency Coordination',
+        phone: '+1 000 000 0101',
+        channel: '[Primary Emergency Channel]'
+      },
+      {
+        id: 'contact-doctor',
+        name: '[Primary Medical Contact]',
+        role: 'Medical',
+        phone: '+1 000 000 0102',
+        channel: 'Medical'
+      },
+      {
+        id: 'contact-leadership',
+        name: '[Expedition Captain]',
+        role: 'Captain',
+        phone: '+1 000 000 0103',
+        channel: 'Captain'
+      }
+    ],
+    protocols: [
+      {
+        kind: 'distress',
+        title: 'Swimmer Distress Protocol Template',
+        steps: [
+          { id: 'distress-1', order: 1, label: 'Escort establishes visual control and swimmer communication', ownerRole: 'kayak-1' },
+          { id: 'distress-2', order: 2, label: 'Captain freezes non-essential traffic and confirms action plan', ownerRole: 'captain' },
+          { id: 'distress-3', order: 3, label: 'Medical lead prepares immediate assessment workflow', ownerRole: 'medical' },
+          { id: 'distress-4', order: 4, label: 'Boat lead positions for safe extraction and minimal wake', ownerRole: 'boat' },
+          { id: 'distress-5', order: 5, label: 'Safety lead logs timeline and response decisions', ownerRole: 'safety' }
+        ]
+      },
+      {
+        kind: 'medical',
+        title: 'Medical Issue Protocol Template',
+        steps: [
+          { id: 'medical-1', order: 1, label: 'Medical lead directs assessment and stabilization steps', ownerRole: 'medical' },
+          { id: 'medical-2', order: 2, label: 'Captain confirms pause vs abort criteria', ownerRole: 'captain' },
+          { id: 'medical-3', order: 3, label: 'Boat lead sets recovery area and dry handoff path', ownerRole: 'boat' },
+          { id: 'medical-4', order: 4, label: 'Safety lead captures vitals, times, and decisions', ownerRole: 'safety' }
+        ]
+      },
+      {
+        kind: 'abort',
+        title: 'Abort Swim Protocol Template',
+        steps: [
+          { id: 'abort-1', order: 1, label: 'Captain broadcasts abort and confirms acknowledgement', ownerRole: 'captain' },
+          { id: 'abort-2', order: 2, label: 'Escort stabilizes swimmer path to extraction point', ownerRole: 'kayak-1' },
+          { id: 'abort-3', order: 3, label: 'Boat lead executes extraction approach', ownerRole: 'boat' },
+          { id: 'abort-4', order: 4, label: 'Medical lead runs recovery protocol on boarding', ownerRole: 'medical' },
+          { id: 'abort-5', order: 5, label: 'Safety lead closes incident log and next-actions list', ownerRole: 'safety' }
+        ]
+      }
+    ],
+    communications: [
+      {
+        id: 'message-template-seed',
+        channel: 'broadcast',
+        at: iso(subMinutes(now, 18)),
+        actorId: 'crew-captain',
+        body: 'Template prompt: confirm all channels and first feeding window.',
+        requiresConfirmation: true
+      }
+    ],
+    partnerTasks: [
+      {
+        id: 'partner-sponsor-midpoint',
+        title: 'Certification or partner evidence checkpoint',
+        ownerId: 'crew-media',
+        dueAt: iso(addMinutes(now, 52)),
+        status: 'pending',
+        notes: 'Define exactly what needs to be captured and when safety conditions allow it.'
+      },
+      {
+        id: 'partner-post-update',
+        title: 'Post-swim stakeholder summary draft',
+        ownerId: 'crew-media',
+        dueAt: iso(addHours(now, 5)),
+        status: 'pending',
+        notes: 'Keep messaging operationally accurate and swimmer-first.'
+      }
+    ],
+    session: {
+      swimmerName: '[Swimmer Name]',
+      location: '[Venue / Channel / Course]',
+      plannedDistance: '[Distance + expected duration]',
+      plannedStartTime: '[HH:MM local]',
+      gpsStart: '[Start GPS coordinates]',
+      gpsEnd: '[Finish GPS coordinates]',
+      primaryVessel: '[Primary support vessel]',
+      supportVessels: '[Escort kayaks, boat, standby assets]',
+      leadCrew: '[Captain + operations lead]',
+      completedBy: '[Prepared by]',
+      operationsEmail: 'operations@example.com'
+    },
+    medicalVitals: {
+      heartRateBpm: '',
+      bodyTempF: '',
+      spo2: '',
+      weightLbs: '',
+      sleepHours: '',
+      sleepQuality: ''
+    },
+    wellnessRatings: {
+      mood: 5,
+      motivation: 5,
+      stress: 5,
+      anxiety: 5,
+      confidence: 5
+    },
+    wildlifeSightings: [],
+    wowsaPhotos: [],
+    expeditionCheckpoints: [
+      {
+        id: 'checkpoint-template-start',
+        at: iso(startedAt),
+        lat: 36.61,
+        lon: -121.9,
+        gps: '[Start checkpoint GPS]',
+        accuracyM: 10,
+        label: 'Template start checkpoint',
+        note: 'Replace with live coordinates captured on launch.',
+        actorId: 'crew-captain'
+      },
+      {
+        id: 'checkpoint-template-current',
+        at: iso(subMinutes(now, 2)),
+        lat: 36.615,
+        lon: -121.91,
+        gps: '[Current checkpoint GPS]',
+        accuracyM: 12,
+        label: 'Template current checkpoint',
+        note: 'Use this table to preserve ordered evidence for certification.',
+        actorId: 'crew-boat'
+      }
+    ]
+  };
+}
+
+export function buildSeedMission(now = new Date()): Mission {
+  return buildLiveSeedMission(now);
 }

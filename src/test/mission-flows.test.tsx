@@ -4,7 +4,7 @@ import { addMinutes } from 'date-fns';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { routes } from '../app/router';
-import { useMissionStore } from '../state/useMissionStore';
+import { createLiveStateFromTemplate, useMissionStore, useTemplateMissionStore } from '../state/useMissionStore';
 
 function renderRoute(path = '/') {
   const router = createMemoryRouter(routes, { initialEntries: [path] });
@@ -15,7 +15,9 @@ describe('mission-critical flows', () => {
   beforeEach(() => {
     localStorage.clear();
     useMissionStore.getState().resetMission();
+    useTemplateMissionStore.getState().resetMission();
     useMissionStore.getState().setOnlineStatus(true);
+    useTemplateMissionStore.getState().setOnlineStatus(true);
   });
 
   it('surfaces overdue WOWSA evidence as the critical action', async () => {
@@ -65,7 +67,7 @@ describe('mission-critical flows', () => {
     });
 
     const state = useMissionStore.getState();
-    const persisted = localStorage.getItem('swim-california-mission');
+    const persisted = localStorage.getItem('swim-california-mission-live');
 
     expect(state.offlineQueue).toHaveLength(1);
     expect(state.mission.timeline[0].summary).toBe('Persistence check');
@@ -92,6 +94,7 @@ describe('mission-critical flows', () => {
       supportVessels: 'Kayak 1',
       leadCrew: 'Alex Captain',
       completedBy: 'Alex Captain',
+      operationsEmail: 'ops@example.com',
       feedingIntervalMinutes: 20,
       wowsaPhotoIntervalMinutes: 15,
       crew
@@ -112,5 +115,26 @@ describe('mission-critical flows', () => {
       lat: 36.96,
       lon: -122.02
     });
+  });
+
+  it('loads the reusable template deliverable with placeholders and guidance', async () => {
+    renderRoute('/template');
+
+    expect(await screen.findByText('Template Onboarding')).toBeInTheDocument();
+    expect(screen.getByText('Endurance Swim Expedition OS Template')).toBeInTheDocument();
+    expect(screen.getByText(/replace every bracketed placeholder/i)).toBeInTheDocument();
+    expect(useTemplateMissionStore.getState().mission.mode).toBe('template');
+  });
+
+  it('duplicates template state into a clean live project state', () => {
+    const templateMission = useTemplateMissionStore.getState().mission;
+    const duplicated = createLiveStateFromTemplate(templateMission, new Date('2026-05-06T20:45:00.000Z'));
+
+    expect(duplicated.mission.mode).toBe('live');
+    expect(duplicated.mission.status).toBe('preparing');
+    expect(duplicated.mission.timeline[0].summary).toBe('Template duplicated to live project');
+    expect(duplicated.mission.alerts).toHaveLength(0);
+    expect(duplicated.mission.wowsaPhotos).toHaveLength(0);
+    expect(duplicated.offlineQueue).toHaveLength(0);
   });
 });

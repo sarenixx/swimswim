@@ -78,6 +78,14 @@ a {
   font-size: 0.78rem;
 }
 
+.brand-context {
+  margin: 4px 0 0;
+  color: rgba(247, 250, 252, 0.86);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
 .nav-stack {
   display: flex;
   flex-direction: column;
@@ -337,6 +345,19 @@ a {
   margin: 4px 0 0;
   color: var(--color-muted);
   font-size: 0.86rem;
+}
+
+.template-onboarding {
+  border-left: 5px solid var(--color-ocean-deep);
+}
+
+.template-guidance-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding-left: 18px;
+  color: var(--color-muted);
+  font-size: 0.9rem;
 }
 
 .critical-action {

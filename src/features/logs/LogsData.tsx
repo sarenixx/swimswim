@@ -33,7 +33,8 @@ const sessionFields = [
   ['primaryVessel', 'Primary Vessel'],
   ['supportVessels', 'Support Vessels'],
   ['leadCrew', 'Lead Crew'],
-  ['completedBy', 'Completed By']
+  ['completedBy', 'Completed By'],
+  ['operationsEmail', 'Operations Email']
 ] as const;
 
 const medicalFields = [
@@ -129,6 +130,10 @@ export function LogsData() {
   const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csvReport)}`;
   const reportDate = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   const reportLocation = mission.session.location || mission.name;
+  const reportEmail = mission.session.operationsEmail || 'operations@example.com';
+  const reportPrefix = mission.mode === 'template' ? 'Endurance Swim Template' : 'Swim California';
+  const jsonDownloadName = mission.mode === 'template' ? 'endurance-swim-template-report.json' : 'swim-california-report.json';
+  const csvDownloadName = mission.mode === 'template' ? 'endurance-swim-template-timeline.csv' : 'swim-california-timeline.csv';
 
   const submitWildlife = () => {
     if (!wildlifeDraft.species.trim()) {
@@ -187,11 +192,11 @@ export function LogsData() {
           <FileDown aria-hidden="true" />
         </div>
         <div className="row-actions">
-          <a className="button primary" href={jsonHref} download="swim-california-report.json">
+          <a className="button primary" href={jsonHref} download={jsonDownloadName}>
             <FileDown aria-hidden="true" />
             JSON
           </a>
-          <a className="button" href={csvHref} download="swim-california-timeline.csv">
+          <a className="button" href={csvHref} download={csvDownloadName}>
             <FileDown aria-hidden="true" />
             CSV
           </a>
@@ -202,8 +207,8 @@ export function LogsData() {
           <a
             className="button"
             href={mailtoHref(
-              'swimcalifornia2026@gmail.com',
-              `Swim California - Logistics Report - ${reportLocation} - ${reportDate}`,
+              reportEmail,
+              `${reportPrefix} - Logistics Report - ${reportLocation} - ${reportDate}`,
               buildLogisticsReport(mission)
             )}
           >
@@ -213,8 +218,8 @@ export function LogsData() {
           <a
             className="button"
             href={mailtoHref(
-              'swimcalifornia2026@gmail.com',
-              `Swim California - Medical Report - ${reportLocation} - ${reportDate}`,
+              reportEmail,
+              `${reportPrefix} - Medical Report - ${reportLocation} - ${reportDate}`,
               buildMedicalReport(mission)
             )}
           >
@@ -380,8 +385,8 @@ export function LogsData() {
           <a
             className="button"
             href={mailtoHref(
-              'swimcalifornia2026@gmail.com',
-              `Swim California - Wildlife Report - ${reportLocation} - ${reportDate}`,
+              reportEmail,
+              `${reportPrefix} - Wildlife Report - ${reportLocation} - ${reportDate}`,
               buildWildlifeReport(mission)
             )}
           >

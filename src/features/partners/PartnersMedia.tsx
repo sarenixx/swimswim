@@ -95,6 +95,9 @@ export function PartnersMedia() {
   const wowsaPhotos = mission.wowsaPhotos ?? [];
   const evidenceManifestHref = `data:application/json;charset=utf-8,${encodeURIComponent(buildWowsaEvidenceManifest(mission))}`;
   const routeCsvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(buildRouteCsv(mission))}`;
+  const reportEmail = mission.session.operationsEmail || 'operations@example.com';
+  const reportPrefix = mission.mode === 'template' ? 'Endurance Swim Template' : 'Swim California';
+  const routeCsvName = mission.mode === 'template' ? 'expedition-route-template.csv' : 'swim-route-checkpoints.csv';
 
   return (
     <div className="page-grid">
@@ -118,7 +121,7 @@ export function PartnersMedia() {
             <span className="metric-note">Missing image or GPS</span>
           </div>
         </div>
-        <img className="logo-watermark" src={logoUrl} alt="Swim California" style={{ marginTop: 16 }} />
+        <img className="logo-watermark" src={logoUrl} alt={reportPrefix} style={{ marginTop: 16 }} />
       </section>
 
       <section className="panel span-8">
@@ -203,15 +206,15 @@ export function PartnersMedia() {
             <CheckCircle2 aria-hidden="true" />
             Evidence JSON
           </a>
-          <a className="button" href={routeCsvHref} download="swim-route-checkpoints.csv">
+          <a className="button" href={routeCsvHref} download={routeCsvName}>
             <MapPin aria-hidden="true" />
             Route CSV
           </a>
           <a
             className="button"
             href={mailtoHref(
-              'swimcalifornia2026@gmail.com',
-              `Swim California - WOWSA Certification Photo Log - ${mission.session.location || mission.name} - ${reportDate}`,
+              reportEmail,
+              `${reportPrefix} - WOWSA Certification Photo Log - ${mission.session.location || mission.name} - ${reportDate}`,
               buildWowsaReport(mission)
             )}
           >

@@ -1,4 +1,5 @@
 export type MissionStatus = 'preparing' | 'active' | 'paused' | 'completed' | 'aborted';
+export type MissionMode = 'live' | 'template';
 
 export type CrewRole =
   | 'captain'
@@ -75,6 +76,7 @@ export interface MissionSetupInput {
   supportVessels: string;
   leadCrew: string;
   completedBy: string;
+  operationsEmail: string;
   feedingIntervalMinutes: number;
   wowsaPhotoIntervalMinutes: number;
   crew: MissionSetupCrewAssignment[];
@@ -181,6 +183,7 @@ export interface DailySessionInfo {
   supportVessels: string;
   leadCrew: string;
   completedBy: string;
+  operationsEmail: string;
 }
 
 export interface MedicalVitals {
@@ -250,6 +253,7 @@ export interface RoutePosition {
 
 export interface Mission {
   id: string;
+  mode: MissionMode;
   name: string;
   status: MissionStatus;
   startedAt: string;

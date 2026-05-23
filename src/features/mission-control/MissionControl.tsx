@@ -17,6 +17,7 @@ import {
   Utensils
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { getMissionPath } from '../../app/missionNavigation';
 import { roleLabels } from '../../state/seed';
 import {
   formatClock,
@@ -80,6 +81,7 @@ export function MissionControl() {
   const cadenceItems = getOperationalCadence(mission, now).slice(0, 4);
   const checkpoints = mission.expeditionCheckpoints ?? [];
   const wowsaPhotos = mission.wowsaPhotos ?? [];
+  const inTemplateMode = mission.mode === 'template';
 
   return (
     <div className="page-grid">
@@ -103,7 +105,7 @@ export function MissionControl() {
             </button>
           ) : null}
           {criticalAction.intent === 'protocol' ? (
-            <Link className="button danger" to="/safety">
+            <Link className="button danger" to={getMissionPath(mission.mode, 'safety')}>
               <ShieldCheck aria-hidden="true" />
               Open protocol
             </Link>
@@ -115,13 +117,13 @@ export function MissionControl() {
             </button>
           ) : null}
           {criticalAction.intent === 'checklist' ? (
-            <Link className="button primary" to="/checklists">
+            <Link className="button primary" to={getMissionPath(mission.mode, 'checklists')}>
               <CheckCircle2 aria-hidden="true" />
               Open checks
             </Link>
           ) : null}
           {criticalAction.intent === 'wowsa' ? (
-            <Link className="button primary" to="/wowsa">
+            <Link className="button primary" to={getMissionPath(mission.mode, 'wowsa')}>
               <CheckCircle2 aria-hidden="true" />
               Open WOWSA
             </Link>
@@ -149,11 +151,31 @@ export function MissionControl() {
             </button>
           ))}
         </div>
-        <Link className="button ghost" to="/safety">
+        <Link className="button ghost" to={getMissionPath(mission.mode, 'safety')}>
           <ShieldCheck aria-hidden="true" />
           Protocols
         </Link>
       </section>
+
+      {inTemplateMode ? (
+        <section className="panel span-12 template-onboarding" aria-labelledby="template-onboarding-title">
+          <div className="panel-header">
+            <div>
+              <h3 className="panel-title" id="template-onboarding-title">
+                Template Onboarding
+              </h3>
+              <p className="panel-subtitle">Use this as your reusable operating system for any endurance swim route.</p>
+            </div>
+            <ShieldCheck aria-hidden="true" />
+          </div>
+          <ul className="template-guidance-list">
+            <li>Open Mission Setup and replace every bracketed placeholder with real event details.</li>
+            <li>Assign your real crew names and phone numbers so ownership appears correctly across checklists, logs, and protocols.</li>
+            <li>Set feeding and evidence cadence before launch, then use Swim Tracker and WOWSA Evidence to capture timestamped proof.</li>
+            <li>Customize contacts and emergency thresholds for the venue, then run the same workflow each training swim.</li>
+          </ul>
+        </section>
+      ) : null}
 
       <section className="panel span-12" aria-labelledby="readiness-title">
         <div className="panel-header">
@@ -166,11 +188,11 @@ export function MissionControl() {
             </p>
           </div>
           <div className="row-actions">
-            <Link className="button" to="/setup">
+            <Link className="button" to={getMissionPath(mission.mode, 'setup')}>
               <Settings2 aria-hidden="true" />
               Setup
             </Link>
-            <Link className="button" to="/checklists">
+            <Link className="button" to={getMissionPath(mission.mode, 'checklists')}>
               Open checks
             </Link>
           </div>
@@ -277,7 +299,7 @@ export function MissionControl() {
             </h3>
             <p className="panel-subtitle">Feeding, certification photos, check-ins, and condition scans.</p>
           </div>
-          <Link className="button" to="/live-operations">
+          <Link className="button" to={getMissionPath(mission.mode, 'live-operations')}>
             Swim tracker
           </Link>
         </div>

@@ -480,6 +480,18 @@ a {
   gap: var(--space-3);
 }
 
+.editable-list.compact-list {
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.inline-edit-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 40px;
+  gap: var(--space-2);
+  align-items: center;
+}
+
 .edit-row-card {
   padding: var(--space-3);
   background: #f9fbfd;

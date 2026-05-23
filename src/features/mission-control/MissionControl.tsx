@@ -40,7 +40,7 @@ type EditableSection = 'overview' | 'timeline' | 'crew' | 'feeding' | 'safety';
 
 interface OverviewDraft {
   name: string;
-  swimmerName: string;
+  swimmers: string[];
   location: string;
   plannedDistance: string;
   plannedStartTime: string;
@@ -120,7 +120,7 @@ const numberFromDraft = (value: string) => {
 
 const overviewDraftFromMission = (mission: Mission): OverviewDraft => ({
   name: mission.name,
-  swimmerName: mission.session.swimmerName,
+  swimmers: mission.session.swimmers?.length ? mission.session.swimmers : [mission.session.swimmerName].filter(Boolean),
   location: mission.session.location,
   plannedDistance: mission.session.plannedDistance,
   plannedStartTime: mission.session.plannedStartTime,
@@ -248,9 +248,35 @@ export function MissionControl() {
   const cancelEdit = () => setEditing(null);
 
   const saveOverview = () => {
-    updateMissionOverview(overviewDraft);
+    const swimmers = overviewDraft.swimmers.map((swimmer) => swimmer.trim()).filter(Boolean);
+    updateMissionOverview({
+      ...overviewDraft,
+      swimmerName: swimmers[0] ?? mission.session.swimmerName,
+      swimmers
+    });
     touch('overview');
     setEditing(null);
+  };
+
+  const updateOverviewSwimmer = (index: number, value: string) => {
+    setOverviewDraft((current) => ({
+      ...current,
+      swimmers: current.swimmers.map((swimmer, currentIndex) => (currentIndex === index ? value : swimmer))
+    }));
+  };
+
+  const addOverviewSwimmer = () => {
+    setOverviewDraft((current) => ({
+      ...current,
+      swimmers: [...current.swimmers, '']
+    }));
+  };
+
+  const removeOverviewSwimmer = (index: number) => {
+    setOverviewDraft((current) => ({
+      ...current,
+      swimmers: current.swimmers.filter((_, currentIndex) => currentIndex !== index)
+    }));
   };
 
   const saveTimeline = () => {
@@ -414,7 +440,7 @@ export function MissionControl() {
       <EditableCard
         section="overview"
         title="Swim Overview"
-        subtitle={`${mission.session.swimmerName} - ${mission.session.location}`}
+        subtitle={`${mission.session.swimmers?.length && mission.session.swimmers.length > 1 ? `${mission.session.swimmers.length} swimmers` : mission.session.swimmerName} - ${mission.session.location}`}
         icon={<CalendarClock aria-hidden="true" />}
         editing={editing}
         lastUpdated={lastUpdated.overview}
@@ -429,10 +455,23 @@ export function MissionControl() {
               Mission name
               <input className="input" value={overviewDraft.name} onChange={(event) => setOverviewDraft({ ...overviewDraft, name: event.target.value })} />
             </label>
-            <label className="field-label">
-              Swimmer
-              <input className="input" value={overviewDraft.swimmerName} onChange={(event) => setOverviewDraft({ ...overviewDraft, swimmerName: event.target.value })} />
-            </label>
+            <div className="field-label span-fields">
+              Swimmers
+              <div className="editable-list compact-list">
+                {overviewDraft.swimmers.map((swimmer, index) => (
+                  <div className="inline-edit-row" key={`overview-swimmer-${index}`}>
+                    <input className="input" value={swimmer} onChange={(event) => updateOverviewSwimmer(index, event.target.value)} placeholder={`Swimmer ${index + 1}`} />
+                    <button className="button-icon" type="button" aria-label={`Remove swimmer ${index + 1}`} onClick={() => removeOverviewSwimmer(index)} disabled={overviewDraft.swimmers.length === 1}>
+                      <X aria-hidden="true" />
+                    </button>
+                  </div>
+                ))}
+                <button className="button" type="button" onClick={addOverviewSwimmer}>
+                  <Plus aria-hidden="true" />
+                  Add swimmer
+                </button>
+              </div>
+            </div>
             <label className="field-label">
               Location
               <input className="input" value={overviewDraft.location} onChange={(event) => setOverviewDraft({ ...overviewDraft, location: event.target.value })} />
@@ -459,6 +498,11 @@ export function MissionControl() {
         ) : (
           <div className="mvp-card-content">
             <MvpFact label="Date / time" value={mission.session.plannedStartTime} note={mission.name} />
+            <MvpFact
+              label={mission.session.swimmers?.length && mission.session.swimmers.length > 1 ? 'Relay swimmers' : 'Swimmer'}
+              value={(mission.session.swimmers?.length ? mission.session.swimmers : [mission.session.swimmerName]).join(', ')}
+              note={mission.session.swimmers?.length && mission.session.swimmers.length > 1 ? `${mission.session.swimmers.length} person relay` : 'Solo swim'}
+            />
             <MvpFact label="Location" value={mission.session.location} note={mission.position.label} />
             <MvpFact label="Goal" value={mission.session.plannedDistance} note={`Status: ${mission.status}`} />
             <MvpFact label="Now" value={getElapsedLabel(mission, now)} note={criticalAction.title} />

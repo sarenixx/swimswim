@@ -59,10 +59,15 @@ describe('mission-critical flows', () => {
     await user.click(within(overview).getByRole('button', { name: /Edit/i }));
     await user.clear(within(overview).getByLabelText(/Location/i));
     await user.type(within(overview).getByLabelText(/Location/i), 'Santa Monica Test Swim');
+    await user.click(within(overview).getByRole('button', { name: /Add swimmer/i }));
+    await user.type(within(overview).getByPlaceholderText('Swimmer 2'), 'Relay Partner');
     await user.click(within(overview).getByRole('button', { name: /Save/i }));
 
     expect(useMissionStore.getState().mission.session.location).toBe('Santa Monica Test Swim');
+    expect(useMissionStore.getState().mission.session.swimmers).toEqual(['Catherine Breed', 'Relay Partner']);
+    expect(useMissionStore.getState().mission.session.swimmerName).toBe('Catherine Breed');
     expect(within(overview).getByText('Santa Monica Test Swim')).toBeInTheDocument();
+    expect(within(overview).getByText('Catherine Breed, Relay Partner')).toBeInTheDocument();
   });
 
   it('opens the focused feeding plan with nutrition and backup options', async () => {

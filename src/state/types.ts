@@ -219,6 +219,7 @@ export interface PartnerTask {
 
 export interface DailySessionInfo {
   swimmerName: string;
+  swimmers?: string[];
   location: string;
   plannedDistance: string;
   plannedStartTime: string;

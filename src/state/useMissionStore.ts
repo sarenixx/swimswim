@@ -29,6 +29,7 @@ import type {
 export interface MissionOverviewEdit {
   name: string;
   swimmerName: string;
+  swimmers?: string[];
   location: string;
   plannedDistance: string;
   plannedStartTime: string;
@@ -568,6 +569,7 @@ const createMissionStore = (storageName: string, seedBuilder: () => Mission): Mi
               session: {
                 ...state.mission.session,
                 swimmerName: input.swimmerName.trim(),
+                swimmers: input.swimmers?.map((swimmer) => swimmer.trim()).filter(Boolean) ?? [input.swimmerName.trim()].filter(Boolean),
                 location: input.location.trim(),
                 plannedDistance: input.plannedDistance.trim(),
                 plannedStartTime: input.plannedStartTime.trim()

@@ -678,6 +678,7 @@ export function buildLiveSeedMission(now = new Date()): Mission {
     ],
     session: {
       swimmerName: 'Catherine Breed',
+      swimmers: ['Catherine Breed'],
       location: 'Catalina Channel',
       plannedDistance: '20.2 miles',
       plannedStartTime: '06:00',
@@ -1382,6 +1383,7 @@ export function buildTemplateSeedMission(now = new Date()): Mission {
     ],
     session: {
       swimmerName: '[Swimmer Name]',
+      swimmers: ['[Swimmer Name]'],
       location: '[Venue / Channel / Course]',
       plannedDistance: '[Distance + expected duration]',
       plannedStartTime: '[HH:MM local]',

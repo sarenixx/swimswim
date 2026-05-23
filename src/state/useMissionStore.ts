@@ -54,6 +54,7 @@ export interface MissionStore {
   offlineQueue: OfflineQueueEntry[];
   loadSeedMission: () => void;
   resetMission: () => void;
+  replaceMissionFromSync: (mission: Mission) => void;
   setActiveActor: (actorId: string) => void;
   setSelectedRole: (role: CrewRole) => void;
   startMissionFromSetup: (input: MissionSetupInput) => void;
@@ -401,6 +402,21 @@ const createMissionStore = (storageName: string, seedBuilder: () => Mission): Mi
 
         resetMission: () => {
           get().loadSeedMission();
+        },
+
+        replaceMissionFromSync: (mission) => {
+          set((state) => {
+            const currentActorExists = mission.crew.some((member) => member.id === state.activeActorId);
+            const currentRoleExists = mission.crew.some((member) => member.role === state.selectedRole);
+            const captain = getCaptain(mission);
+
+            return {
+              ...state,
+              mission,
+              activeActorId: currentActorExists ? state.activeActorId : captain?.id ?? state.activeActorId,
+              selectedRole: currentRoleExists ? state.selectedRole : captain?.role ?? state.selectedRole
+            };
+          });
         },
 
         setActiveActor: (actorId) => set({ activeActorId: actorId }),

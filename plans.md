@@ -29,6 +29,7 @@ The first demonstrably useful release is a responsive progressive web app, which
 - [x] (2026-05-23 22:16Z) Corrected the top Right Now priority back to WOWSA GPS photo capture when evidence is due or overdue, and changed emergency access from alert-style signals to calm protocol access buttons.
 - [x] (2026-05-23 22:18Z) Simplified protocol access further from three scenario buttons to one Protocol button. The detailed Safety page now uses a quiet scenario selector to review medical, distress, and abort protocols without presenting them as primary actions.
 - [x] (2026-05-23 22:25Z) Made the WOWSA Right Now action operational. The capture flow now records GPS label, latitude, longitude, accuracy, timestamp, distance, notes, and image metadata; stores photo blobs in browser IndexedDB; keeps evidence metadata in the mission store; adds GPS photo checkpoints to route evidence; and exports the richer manifest/report data.
+- [x] (2026-05-23 22:32Z) Added optional Supabase-backed multi-phone sync for the live test swim. The app now uses Postgres mission snapshots with realtime updates when configured, Supabase Storage for WOWSA images, local browser storage as fallback, a visible SQL sync status pill, and setup files for the required schema and environment variables.
 
 ## Surprises & Discoveries
 
@@ -52,6 +53,9 @@ The first demonstrably useful release is a responsive progressive web app, which
 
 - Observation: WOWSA capture needs durable local image storage, not only reminder text.
   Evidence: The user asked for the Right Now photo capture to become usable with GPS and storage, so image blobs now live in browser evidence storage while mission metadata remains in the local-first app state.
+
+- Observation: The Catherine test swim needs shared state across multiple phones, so local-only storage is insufficient for the live exercise.
+  Evidence: The user explicitly identified multi-phone use as a test-swim requirement and asked whether SQL should be part of the setup.
 
 ## Decision Log
 
@@ -83,6 +87,10 @@ The first demonstrably useful release is a responsive progressive web app, which
   Rationale: Catherine needs a simple way to understand the response playbooks without the dashboard presenting Medical, Distress, and Abort as alarming action buttons.
   Date/Author: 2026-05-23 / Codex
 
+- Decision: Add Supabase as an optional sync layer rather than replacing the local-first app model.
+  Rationale: The test swim needs multiple phones to share edits and evidence, but the app must still work if connectivity is poor. A Postgres mission snapshot plus Storage-backed images gives fast live sync without a full custom backend.
+  Date/Author: 2026-05-23 / Codex
+
 ## Outcomes & Retrospective
 
 The first usable release is now implemented as a local-first React PWA. The largest remaining product gaps are real multi-device sync, live GPS/weather integrations, and production authentication/permissions; the current release uses seeded data and browser-local state to validate the operational workflows.
@@ -104,6 +112,8 @@ The Catherine demo pass deliberately reduced the first dashboard surface. The li
 The latest correction restored the WOWSA GPS photo capture as the highest visible overdue action when certification evidence is due. Protocol access is now a single calm button, with scenario review handled inside the Safety page rather than as three primary actions.
 
 The WOWSA evidence pass turned the reminder into a real local workflow. Capture now uses device GPS when permitted, camera/file input for the image, IndexedDB for the image blob, persisted mission state for the evidence record, and manifest/report exports that include GPS coordinates, accuracy, storage key, and image size.
+
+The sync pass made the test swim feasible on multiple phones. With Supabase env vars present, live mission state syncs through the mission_snapshots Postgres table and realtime channel; WOWSA image files upload to Supabase Storage. With no env vars, the app remains local-only and keeps the previous offline behavior.
 
 ## Context and Orientation
 

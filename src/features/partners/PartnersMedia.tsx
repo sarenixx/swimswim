@@ -10,6 +10,13 @@ import {
   mailtoHref
 } from '../../lib/reports';
 import { deleteEvidenceImage, getEvidenceImage, makeEvidenceImageKey, saveEvidenceImage } from '../../lib/storage/evidenceStore';
+import {
+  getEvidenceImageUrl,
+  getSyncMissionId,
+  isRemoteSyncAvailable,
+  removeEvidenceImage as removeRemoteEvidenceImage,
+  uploadEvidenceImage
+} from '../../lib/sync/supabaseClient';
 import { useNow } from '../../lib/useNow';
 import { formatClock, getCrewLabel, getWowsaNextDueAt } from '../../state/selectors';
 import { useMissionStore } from '../../state/useMissionStore';
@@ -94,6 +101,12 @@ export function PartnersMedia() {
           }
 
           try {
+            const remoteUrl = await getEvidenceImageUrl(photo.imageStorageKey);
+            if (remoteUrl) {
+              nextUrls[photo.id] = remoteUrl;
+              return;
+            }
+
             const stored = await getEvidenceImage(photo.imageStorageKey);
             if (stored?.blob) {
               const url = URL.createObjectURL(stored.blob);
@@ -135,12 +148,16 @@ export function PartnersMedia() {
     let imageStorageKey: string | undefined;
     let imageSizeBytes: number | undefined;
 
-    setStorageStatus(photoDraft.imageFile ? 'Saving image locally...' : 'Saving evidence record...');
+    setStorageStatus(photoDraft.imageFile ? 'Saving image...' : 'Saving evidence record...');
 
     try {
       if (photoDraft.imageFile) {
-        imageStorageKey = makeEvidenceImageKey(mission.id, at, photoDraft.imageFile.name);
-        await saveEvidenceImage(imageStorageKey, photoDraft.imageFile);
+        imageStorageKey = makeEvidenceImageKey(getSyncMissionId(mission), at, photoDraft.imageFile.name);
+        if (isRemoteSyncAvailable()) {
+          await uploadEvidenceImage(imageStorageKey, photoDraft.imageFile);
+        } else {
+          await saveEvidenceImage(imageStorageKey, photoDraft.imageFile);
+        }
         imageSizeBytes = photoDraft.imageFile.size;
       }
 
@@ -158,7 +175,15 @@ export function PartnersMedia() {
         imageSizeBytes,
         actorId: activeActorId
       });
-      setStorageStatus(imageStorageKey ? 'Evidence saved locally with image.' : 'Evidence record saved locally.');
+      setStorageStatus(
+        imageStorageKey
+          ? isRemoteSyncAvailable()
+            ? 'Evidence saved to SQL sync with storage image.'
+            : 'Evidence saved locally with image.'
+          : isRemoteSyncAvailable()
+            ? 'Evidence record saved to SQL sync.'
+            : 'Evidence record saved locally.'
+      );
       resetDraft();
     } catch (error) {
       setStorageStatus(error instanceof Error ? error.message : 'Could not save evidence locally.');
@@ -201,7 +226,11 @@ export function PartnersMedia() {
   const handleRemovePhoto = async (photoId: string, imageStorageKey?: string) => {
     if (imageStorageKey) {
       try {
-        await deleteEvidenceImage(imageStorageKey);
+        if (isRemoteSyncAvailable()) {
+          await removeRemoteEvidenceImage(imageStorageKey);
+        } else {
+          await deleteEvidenceImage(imageStorageKey);
+        }
       } catch {
         setStorageStatus('Removed record. Could not remove cached image.');
       }

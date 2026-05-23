@@ -5,6 +5,19 @@ Local-first PWA for coordinating high-risk endurance swim expeditions, now deliv
 - `Live Operational Project` (`/`): fully populated Catherine expedition data, logistics, protocols, and active operations workflows.
 - `Reusable Template Project` (`/template`): generalized, client-ready framework with placeholders and onboarding guidance for new swimmers and routes.
 
+## Multi-Phone Sync
+
+The app still works locally with no backend. For Catherine's test swim, set up Supabase so multiple phones share the live mission:
+
+1. Create a Supabase project.
+2. Run `supabase/schema.sql` in the Supabase SQL editor.
+3. Copy `.env.example` to `.env.local`.
+4. Fill in `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
+5. Use the same `VITE_SYNC_MISSION_ID` on every phone.
+6. Restart `npm run dev`.
+
+When configured, Postgres stores the shared mission snapshot, Supabase Storage stores WOWSA image files, and the app keeps local storage as a fallback.
+
 ## Scripts
 
 - `npm run dev` starts the local Vite server.

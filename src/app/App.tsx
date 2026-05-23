@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Copy, Radio, RotateCcw, Wifi, WifiOff } from 'lucide-react';
 import logoUrl from '../assets/logo.webp';
+import { useMissionSync } from '../lib/sync/useMissionSync';
 import { roleLabels } from '../state/seed';
 import { createLiveStateFromTemplate, useLiveMissionStore, useMissionStore } from '../state/useMissionStore';
 import {
@@ -30,6 +31,7 @@ export function AppShell() {
   const deliverableBrand = getDeliverableBrand(mission.mode);
   const alternateDeliverable = getAlternateDeliverableLink(mission.mode);
   const inTemplateMode = mission.mode === 'template';
+  const sqlSync = useMissionSync(!inTemplateMode);
 
   const duplicateTemplateToLive = () => {
     if (!inTemplateMode) {
@@ -135,6 +137,12 @@ export function AppShell() {
             ) : null}
             <span className={online ? 'sync-pill online' : 'sync-pill offline'}>
               {online ? 'Online' : `${offlineQueue.length} queued offline`}
+            </span>
+            <span
+              className={sqlSync.state === 'synced' || sqlSync.state === 'syncing' || sqlSync.state === 'loading' ? 'sync-pill online' : 'sync-pill offline'}
+              title={sqlSync.detail}
+            >
+              {sqlSync.label}
             </span>
             <button
               className="button-icon"

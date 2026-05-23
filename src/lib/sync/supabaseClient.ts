@@ -4,9 +4,10 @@ import type { Mission } from '../../state/types';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 const configuredMissionId = import.meta.env.VITE_SYNC_MISSION_ID as string | undefined;
+const isTestMode = import.meta.env.MODE === 'test';
 export const evidenceBucket = (import.meta.env.VITE_SUPABASE_EVIDENCE_BUCKET as string | undefined) || 'wowsa-evidence';
 
-export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
+export const isSupabaseConfigured = !isTestMode && Boolean(supabaseUrl && supabaseAnonKey);
 
 export const supabase: SupabaseClient | undefined = isSupabaseConfigured
   ? createClient(supabaseUrl!, supabaseAnonKey!, {

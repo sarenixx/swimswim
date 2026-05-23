@@ -315,6 +315,18 @@ export function getNextCriticalAction(mission: Mission, now = new Date()): Criti
   const cadenceItems = getOperationalCadence(mission, now);
   const wowsaDueAt = getWowsaNextDueAt(mission);
   const wowsaMinutes = getMinutesUntil(wowsaDueAt, now);
+
+  if (!criticalAlert || !['medical', 'distress', 'abort'].includes(criticalAlert.kind)) {
+    return {
+      title: 'Take WOWSA GPS evidence photo',
+      detail: 'Capture photo evidence with GPS, timestamp, and distance note.',
+      severity: wowsaMinutes <= 0 ? 'critical' : wowsaMinutes <= 10 ? 'warning' : 'normal',
+      dueAt: wowsaDueAt,
+      actionLabel: 'Capture GPS photo',
+      intent: 'wowsa'
+    };
+  }
+
   if (criticalAlert) {
     return {
       title: criticalAlert.title,
@@ -330,17 +342,6 @@ export function getNextCriticalAction(mission: Mission, now = new Date()): Criti
           ? 'protocol'
           : 'alert',
       alertId: criticalAlert.id
-    };
-  }
-
-  if (wowsaMinutes <= 10) {
-    return {
-      title: wowsaMinutes <= 0 ? 'WOWSA GPS photo capture overdue' : `WOWSA GPS photo capture in ${wowsaMinutes} min`,
-      detail: 'Capture photo evidence with GPS, timestamp, and distance note.',
-      severity: wowsaMinutes <= 0 ? 'critical' : 'warning',
-      dueAt: wowsaDueAt,
-      actionLabel: 'Capture GPS photo',
-      intent: 'wowsa'
     };
   }
 

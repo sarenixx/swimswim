@@ -24,7 +24,7 @@ describe('mission-critical flows', () => {
     renderRoute('/');
 
     expect(await screen.findByText('Right Now')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /WOWSA GPS photo capture overdue/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Take WOWSA GPS evidence photo/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Capture GPS photo/i })).toBeInTheDocument();
     expect(screen.getByText('Active Alerts')).toBeInTheDocument();
   });

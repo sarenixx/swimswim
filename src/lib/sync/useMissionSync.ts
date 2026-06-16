@@ -21,23 +21,23 @@ export interface MissionSyncStatus {
 
 function buildLabel(state: SyncState) {
   if (state === 'loading') {
-    return 'SQL loading';
+    return 'Supabase loading';
   }
 
   if (state === 'syncing') {
-    return 'SQL syncing';
+    return 'Supabase syncing';
   }
 
   if (state === 'synced') {
-    return 'SQL synced';
+    return 'Supabase synced';
   }
 
   if (state === 'offline') {
-    return 'SQL offline';
+    return 'Supabase offline';
   }
 
   if (state === 'error') {
-    return 'SQL error';
+    return 'Supabase error';
   }
 
   return 'Local only';
@@ -67,7 +67,7 @@ export function useMissionSync(enabled: boolean): MissionSyncStatus {
     let cancelled = false;
     hydratedRef.current = false;
     setState('loading');
-    setDetail('Checking latest SQL snapshot.');
+    setDetail('Checking latest Supabase snapshot.');
 
     async function loadSnapshot() {
       const { data, error } = await client
@@ -94,7 +94,7 @@ export function useMissionSync(enabled: boolean): MissionSyncStatus {
           applyingRemoteRef.current = false;
         }, 0);
         setState('synced');
-        setDetail(`Loaded SQL snapshot from ${new Date(data.updated_at).toLocaleTimeString()}.`);
+        setDetail(`Loaded Supabase snapshot from ${new Date(data.updated_at).toLocaleTimeString()}.`);
       } else {
         const updatedAt = new Date().toISOString();
         const localPayload = JSON.stringify(mission);
@@ -113,7 +113,7 @@ export function useMissionSync(enabled: boolean): MissionSyncStatus {
 
         lastPayloadRef.current = localPayload;
         setState('synced');
-        setDetail(`Created first SQL snapshot at ${new Date(updatedAt).toLocaleTimeString()}.`);
+        setDetail(`Created first Supabase snapshot at ${new Date(updatedAt).toLocaleTimeString()}.`);
       }
 
       hydratedRef.current = true;
@@ -167,7 +167,7 @@ export function useMissionSync(enabled: boolean): MissionSyncStatus {
     }
 
     setState(navigator.onLine ? 'syncing' : 'offline');
-    setDetail(navigator.onLine ? 'Saving SQL snapshot.' : 'Offline. Local changes will retry when this phone reconnects.');
+    setDetail(navigator.onLine ? 'Saving Supabase snapshot.' : 'Offline. Local changes will retry when this phone reconnects.');
 
     const timeout = window.setTimeout(async () => {
       const updatedAt = new Date().toISOString();
@@ -186,7 +186,7 @@ export function useMissionSync(enabled: boolean): MissionSyncStatus {
 
       lastPayloadRef.current = payload;
       setState('synced');
-      setDetail(`Saved SQL snapshot at ${new Date(updatedAt).toLocaleTimeString()}.`);
+      setDetail(`Saved Supabase snapshot at ${new Date(updatedAt).toLocaleTimeString()}.`);
     }, 650);
 
     return () => window.clearTimeout(timeout);

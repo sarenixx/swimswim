@@ -3,7 +3,7 @@ import { addHours, addMinutes } from 'date-fns';
 import { create, type StoreApi, type UseBoundStore } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { createOfflineQueueEntry, type OfflineQueueEntry } from '../lib/storage/offlineQueue';
-import { buildLiveSeedMission, buildTemplateSeedMission, emergencyLabels } from './seed';
+import { buildLiveSeedMission, buildTemplateSeedMission, emergencyLabels, legacyLiveMissionName, liveMissionName } from './seed';
 import type {
   Alert,
   ChecklistItem,
@@ -13,6 +13,11 @@ import type {
   DailySessionInfo,
   EmergencyKind,
   ExpeditionCheckpoint,
+  MedicalChecklistItem,
+  MedicalChecklistStatus,
+  MedicalDailyChecklistItemRecord,
+  MedicalDailyRecord,
+  MedicalSymptomEntry,
   FeedingPlanItem,
   MedicalVitals,
   Mission,
@@ -84,6 +89,25 @@ export interface MissionStore {
   updateSessionField: <K extends keyof DailySessionInfo>(field: K, value: DailySessionInfo[K]) => void;
   updateMedicalVitalsField: <K extends keyof MedicalVitals>(field: K, value: MedicalVitals[K]) => void;
   updateWellnessRating: <K extends keyof WellnessRatings>(field: K, value: WellnessRatings[K]) => void;
+  updateMedicalChecklistItem: (
+    itemId: string,
+    input: { status: MedicalChecklistStatus; note?: string; nextReviewAt?: string },
+    actorId?: string
+  ) => void;
+  updateMedicalDailyChecklistItem: (
+    date: string,
+    itemId: string,
+    input: { status: MedicalChecklistStatus; note?: string },
+    actorId?: string
+  ) => void;
+  addMedicalSymptomEntry: (
+    entry: Omit<MedicalSymptomEntry, 'id' | 'at' | 'actorId' | 'status' | 'resolvedAt' | 'resolvedBy'> & {
+      at?: string;
+      actorId?: string;
+      status?: MedicalSymptomEntry['status'];
+    }
+  ) => void;
+  resolveMedicalSymptomEntry: (entryId: string, actorId?: string) => void;
   addWildlifeSighting: (
     sighting: Omit<WildlifeSighting, 'id' | 'at' | 'actorId'> & { at?: string; actorId?: string }
   ) => void;
@@ -388,6 +412,102 @@ const buildInitialState = (seedBuilder: () => Mission) => {
     selectedRole: captain?.role ?? 'captain',
     online: getDefaultOnlineStatus(),
     offlineQueue: [] as OfflineQueueEntry[]
+  };
+};
+
+type PersistedMissionState = Pick<MissionStore, 'mission' | 'activeActorId' | 'selectedRole' | 'online' | 'offlineQueue'>;
+
+const mergeById = <T extends { id: string }>(persistedItems: T[], seededItems: T[]): T[] => {
+  const persistedById = new Map(persistedItems.map((item) => [item.id, item]));
+  const seededIds = new Set(seededItems.map((item) => item.id));
+
+  return [
+    ...seededItems.map((seededItem) => persistedById.get(seededItem.id) ?? seededItem),
+    ...persistedItems.filter((item) => !seededIds.has(item.id))
+  ];
+};
+
+const mergeUniqueStrings = (persistedItems: string[], seededItems: string[]): string[] => [
+  ...persistedItems,
+  ...seededItems.filter((item) => !persistedItems.includes(item))
+];
+
+const mergePersistedMissionState = (persistedState: unknown, currentState: MissionStore): MissionStore => {
+  const persisted = persistedState as Partial<PersistedMissionState> | undefined;
+  let merged: MissionStore = {
+    ...currentState,
+    ...persisted
+  };
+
+  if (merged.mission?.name === legacyLiveMissionName) {
+    merged = {
+      ...merged,
+      mission: {
+        ...merged.mission,
+        name: liveMissionName
+      }
+    };
+  }
+
+  const medicalChecklist =
+    Array.isArray(merged.mission.medicalChecklist) && merged.mission.medicalChecklist.length
+      ? mergeById(merged.mission.medicalChecklist, currentState.mission.medicalChecklist)
+      : currentState.mission.medicalChecklist;
+  const medicalSymptomLog = Array.isArray(merged.mission.medicalSymptomLog)
+    ? merged.mission.medicalSymptomLog
+    : currentState.mission.medicalSymptomLog;
+  const medicalDailyRecords = Array.isArray(merged.mission.medicalDailyRecords)
+    ? merged.mission.medicalDailyRecords
+    : currentState.mission.medicalDailyRecords;
+  const contacts = mergeById(merged.mission.contacts, currentState.mission.contacts);
+  const checklistItems = mergeById(merged.mission.checklistItems, currentState.mission.checklistItems);
+  const hasMedicalSymptomLog = Array.isArray(merged.mission.medicalSymptomLog);
+  const hasMedicalDailyRecords = Array.isArray(merged.mission.medicalDailyRecords);
+  const medicalChecklistLength = Array.isArray(merged.mission.medicalChecklist) ? merged.mission.medicalChecklist.length : 0;
+
+  if (merged.mission.mode !== 'live') {
+    if (
+      hasMedicalSymptomLog &&
+      hasMedicalDailyRecords &&
+      checklistItems.length === merged.mission.checklistItems.length &&
+      medicalChecklist.length === medicalChecklistLength
+    ) {
+      return merged;
+    }
+
+    return {
+      ...merged,
+      mission: {
+        ...merged.mission,
+        checklistItems,
+        medicalChecklist,
+        medicalDailyRecords,
+        medicalSymptomLog
+      }
+    };
+  }
+
+  const seededMedicalProtocol = currentState.mission.protocols.find((protocol) => protocol.kind === 'medical');
+
+  return {
+    ...merged,
+    mission: {
+      ...merged.mission,
+      contacts,
+      checklistItems,
+      medicalChecklist,
+      medicalDailyRecords,
+      medicalSymptomLog,
+      riskPlan: {
+        ...merged.mission.riskPlan,
+        abortConditions: mergeUniqueStrings(merged.mission.riskPlan.abortConditions, currentState.mission.riskPlan.abortConditions),
+        medicalConcerns: mergeUniqueStrings(merged.mission.riskPlan.medicalConcerns, currentState.mission.riskPlan.medicalConcerns),
+        mitigationNotes: mergeUniqueStrings(merged.mission.riskPlan.mitigationNotes, currentState.mission.riskPlan.mitigationNotes)
+      },
+      protocols: merged.mission.protocols.map((protocol) =>
+        protocol.kind === 'medical' && seededMedicalProtocol ? seededMedicalProtocol : protocol
+      )
+    }
   };
 };
 
@@ -783,36 +903,53 @@ const createMissionStore = (storageName: string, seedBuilder: () => Mission): Mi
         },
 
         updateSafetyPlan: (input) => {
+          const at = new Date().toISOString();
+          const activeActorId = get().activeActorId;
+
           set((state) => {
             const [primaryContact, ...restContacts] = state.mission.contacts;
+            const event: TimelineEvent = {
+              id: makeId('event-safety-plan', at),
+              type: 'weather',
+              at,
+              actorId: activeActorId,
+              summary: 'Safety/risk plan updated',
+              detail: 'Weather window, source, stop criteria, and medical concerns reviewed.',
+              severity: 'info'
+            };
+
             return {
               ...state,
-              mission: {
-                ...state.mission,
-                contacts: [
-                  {
-                    ...(primaryContact ?? {
-                      id: 'contact-primary',
-                      name: '',
-                      role: '',
-                      phone: '',
-                      channel: ''
-                    }),
-                    name: input.emergencyContactName.trim(),
-                    role: input.emergencyContactRole.trim(),
-                    phone: input.emergencyContactPhone.trim(),
-                    channel: input.emergencyContactChannel.trim()
-                  },
-                  ...restContacts
-                ],
-                riskPlan: {
-                  ...state.mission.riskPlan,
-                  tideWindow: input.tideWindow.trim(),
-                  weatherSource: input.weatherSource.trim(),
-                  abortConditions: linesToList(input.abortConditionsText),
-                  medicalConcerns: linesToList(input.medicalConcernsText)
-                }
-              }
+              mission: appendTimeline(
+                {
+                  ...state.mission,
+                  contacts: [
+                    {
+                      ...(primaryContact ?? {
+                        id: 'contact-primary',
+                        name: '',
+                        role: '',
+                        phone: '',
+                        channel: ''
+                      }),
+                      name: input.emergencyContactName.trim(),
+                      role: input.emergencyContactRole.trim(),
+                      phone: input.emergencyContactPhone.trim(),
+                      channel: input.emergencyContactChannel.trim()
+                    },
+                    ...restContacts
+                  ],
+                  riskPlan: {
+                    ...state.mission.riskPlan,
+                    tideWindow: input.tideWindow.trim(),
+                    weatherSource: input.weatherSource.trim(),
+                    abortConditions: linesToList(input.abortConditionsText),
+                    medicalConcerns: linesToList(input.medicalConcernsText)
+                  }
+                },
+                event
+              ),
+              offlineQueue: queueIfOffline(state.online, state.offlineQueue, 'safety-plan-update', input, at)
             };
           });
         },
@@ -1161,6 +1298,246 @@ const createMissionStore = (storageName: string, seedBuilder: () => Mission): Mi
           }));
         },
 
+        updateMedicalChecklistItem: (itemId, input, actorId) => {
+          const at = new Date().toISOString();
+          const activeActorId = actorId ?? get().activeActorId;
+
+          set((state) => {
+            const item = state.mission.medicalChecklist.find((candidate) => candidate.id === itemId);
+            if (!item) {
+              return state;
+            }
+
+            const updatedItem: MedicalChecklistItem = {
+              ...item,
+              status: input.status,
+              completedAt: input.status === 'pending' ? undefined : at,
+              completedBy: input.status === 'pending' ? undefined : activeActorId,
+              lastNote: input.note?.trim() || item.lastNote,
+              nextReviewAt: input.nextReviewAt || item.nextReviewAt
+            };
+            const severity = input.status === 'escalated' ? 'critical' : input.status === 'watch' ? 'warning' : 'info';
+            const event: TimelineEvent = {
+              id: makeId('event-medical-check', at),
+              type: 'condition',
+              at,
+              actorId: activeActorId,
+              summary: `Medical checklist ${input.status}`,
+              detail: `${item.title}${input.note?.trim() ? ` - ${input.note.trim()}` : ''}`,
+              severity
+            };
+            const alert: Alert | undefined =
+              input.status === 'escalated'
+                ? {
+                    id: makeId('alert-medical-check', at),
+                    kind: 'medical',
+                    title: 'Medical checklist escalation',
+                    detail: event.detail ?? item.title,
+                    createdAt: at,
+                    status: 'active',
+                    severity: 'critical'
+                  }
+                : undefined;
+
+            return {
+              ...state,
+              mission: appendTimeline(
+                {
+                  ...state.mission,
+                  medicalChecklist: state.mission.medicalChecklist.map((candidate) =>
+                    candidate.id === itemId ? updatedItem : candidate
+                  ),
+                  alerts: alert ? [alert, ...state.mission.alerts] : state.mission.alerts
+                },
+                event
+              ),
+              offlineQueue: queueIfOffline(state.online, state.offlineQueue, 'medical-checklist-update', updatedItem, at)
+            };
+          });
+        },
+
+        updateMedicalDailyChecklistItem: (date, itemId, input, actorId) => {
+          const at = new Date().toISOString();
+          const activeActorId = actorId ?? get().activeActorId;
+
+          set((state) => {
+            const item = state.mission.medicalChecklist.find((candidate) => candidate.id === itemId);
+            if (!item) {
+              return state;
+            }
+
+            const existingRecord = state.mission.medicalDailyRecords.find((record) => record.date === date);
+            const existingRecordItems = new Map(existingRecord?.items.map((recordItem) => [recordItem.itemId, recordItem]) ?? []);
+            const updatedDailyItem: MedicalDailyChecklistItemRecord = {
+              itemId,
+              status: input.status,
+              note: input.note?.trim() ?? existingRecordItems.get(itemId)?.note ?? '',
+              completedAt: input.status === 'pending' ? undefined : at,
+              completedBy: input.status === 'pending' ? undefined : activeActorId
+            };
+            const recordItems = state.mission.medicalChecklist.map<MedicalDailyChecklistItemRecord>((templateItem) => {
+              if (templateItem.id === itemId) {
+                return updatedDailyItem;
+              }
+
+              return (
+                existingRecordItems.get(templateItem.id) ?? {
+                  itemId: templateItem.id,
+                  status: 'pending',
+                  note: ''
+                }
+              );
+            });
+            const updatedRecord: MedicalDailyRecord = {
+              id: existingRecord?.id ?? `medical-daily-record-${date}`,
+              date,
+              updatedAt: at,
+              updatedBy: activeActorId,
+              items: recordItems
+            };
+            const updatedChecklistItem: MedicalChecklistItem = {
+              ...item,
+              status: input.status,
+              completedAt: input.status === 'pending' ? undefined : at,
+              completedBy: input.status === 'pending' ? undefined : activeActorId,
+              lastNote: input.note?.trim() || item.lastNote
+            };
+            const severity = input.status === 'escalated' ? 'critical' : input.status === 'watch' ? 'warning' : 'info';
+            const event: TimelineEvent = {
+              id: makeId('event-medical-daily-check', at),
+              type: 'condition',
+              at,
+              actorId: activeActorId,
+              summary: `Daily medical checklist ${input.status}`,
+              detail: `${date}: ${item.title}${input.note?.trim() ? ` - ${input.note.trim()}` : ''}`,
+              severity
+            };
+            const alert: Alert | undefined =
+              input.status === 'escalated'
+                ? {
+                    id: makeId('alert-medical-daily-check', at),
+                    kind: 'medical',
+                    title: 'Daily medical checklist escalation',
+                    detail: event.detail ?? item.title,
+                    createdAt: at,
+                    status: 'active',
+                    severity: 'critical'
+                  }
+                : undefined;
+
+            return {
+              ...state,
+              mission: appendTimeline(
+                {
+                  ...state.mission,
+                  medicalChecklist: state.mission.medicalChecklist.map((candidate) =>
+                    candidate.id === itemId ? updatedChecklistItem : candidate
+                  ),
+                  medicalDailyRecords: [
+                    updatedRecord,
+                    ...state.mission.medicalDailyRecords.filter((record) => record.date !== date)
+                  ].sort((left, right) => right.date.localeCompare(left.date)),
+                  alerts: alert ? [alert, ...state.mission.alerts] : state.mission.alerts
+                },
+                event
+              ),
+              offlineQueue: queueIfOffline(state.online, state.offlineQueue, 'medical-daily-checklist-update', updatedRecord, at)
+            };
+          });
+        },
+
+        addMedicalSymptomEntry: (input) => {
+          const at = input.at ?? new Date().toISOString();
+          const activeActorId = input.actorId ?? get().activeActorId;
+          const { at: _ignoredAt, actorId: _ignoredActor, status: _ignoredStatus, ...rest } = input;
+          const entry: MedicalSymptomEntry = {
+            id: makeId('medical-symptom', at),
+            at,
+            actorId: activeActorId,
+            status: input.status ?? 'open',
+            ...rest
+          };
+          const severity = entry.severity === 'emergency' ? 'critical' : entry.severity === 'watch' ? 'info' : 'warning';
+          const actionDetail = entry.actionTaken.trim() || 'No action recorded.';
+          const event: TimelineEvent = {
+            id: makeId('event-medical-symptom', at),
+            type: 'condition',
+            at,
+            actorId: activeActorId,
+            summary: `Medical symptom logged: ${entry.symptom}`,
+            detail: `${entry.trend}; ${actionDetail}${entry.notes ? ` - ${entry.notes}` : ''}`,
+            severity
+          };
+          const alert: Alert | undefined =
+            entry.severity === 'urgent' || entry.severity === 'emergency'
+              ? {
+                  id: makeId('alert-medical-symptom', at),
+                  kind: 'medical',
+                  title: entry.severity === 'emergency' ? 'Emergency medical symptom' : 'Urgent medical symptom',
+                  detail: `${entry.symptom}: ${actionDetail}`,
+                  createdAt: at,
+                  status: 'active',
+                  severity: entry.severity === 'emergency' ? 'critical' : 'warning'
+                }
+              : undefined;
+
+          set((state) => ({
+            ...state,
+            mission: appendTimeline(
+              {
+                ...state.mission,
+                medicalSymptomLog: [entry, ...state.mission.medicalSymptomLog],
+                alerts: alert ? [alert, ...state.mission.alerts] : state.mission.alerts
+              },
+              event
+            ),
+            offlineQueue: queueIfOffline(state.online, state.offlineQueue, 'medical-symptom-entry', entry, at)
+          }));
+        },
+
+        resolveMedicalSymptomEntry: (entryId, actorId) => {
+          const at = new Date().toISOString();
+          const activeActorId = actorId ?? get().activeActorId;
+
+          set((state) => {
+            const entry = state.mission.medicalSymptomLog.find((candidate) => candidate.id === entryId);
+            if (!entry || entry.status === 'resolved') {
+              return state;
+            }
+
+            const resolvedEntry: MedicalSymptomEntry = {
+              ...entry,
+              status: 'resolved',
+              trend: 'resolved',
+              resolvedAt: at,
+              resolvedBy: activeActorId
+            };
+            const event: TimelineEvent = {
+              id: makeId('event-medical-symptom-resolved', at),
+              type: 'condition',
+              at,
+              actorId: activeActorId,
+              summary: `Medical symptom resolved: ${entry.symptom}`,
+              detail: entry.notes || entry.actionTaken,
+              severity: 'info'
+            };
+
+            return {
+              ...state,
+              mission: appendTimeline(
+                {
+                  ...state.mission,
+                  medicalSymptomLog: state.mission.medicalSymptomLog.map((candidate) =>
+                    candidate.id === entryId ? resolvedEntry : candidate
+                  )
+                },
+                event
+              ),
+              offlineQueue: queueIfOffline(state.online, state.offlineQueue, 'medical-symptom-resolved', resolvedEntry, at)
+            };
+          });
+        },
+
         addWildlifeSighting: (input) => {
           const at = input.at ?? new Date().toISOString();
           const activeActorId = input.actorId ?? get().activeActorId;
@@ -1374,7 +1751,8 @@ const createMissionStore = (storageName: string, seedBuilder: () => Mission): Mi
           selectedRole: state.selectedRole,
           online: state.online,
           offlineQueue: state.offlineQueue
-        })
+        }),
+        merge: mergePersistedMissionState
       }
     )
   );

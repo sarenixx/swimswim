@@ -5,15 +5,17 @@ const blank = (value?: string | number) => (value === undefined || value === '' 
 
 function sessionBlock(mission: Mission) {
   const session = mission.session;
-  return `${mission.name} - Daily Operations Report
-Generated: ${format(new Date(), 'PPpp')}
+  return `${mission.name} - Operational Swim Source of Truth
+Record Generated: ${format(new Date(), 'PPpp')}
 Mission: ${mission.name}
+Status: ${mission.status}
 Swimmer: ${blank(session.swimmerName)}
 Location: ${blank(session.location)}
 Planned Distance: ${blank(session.plannedDistance)}
 Planned Start Time: ${blank(session.plannedStartTime)}
 Feeding Interval: ${mission.feedingIntervalMinutes} min
-WOWSA Photo Interval: ${mission.wowsaPhotoIntervalMinutes ?? 30} min
+Current Position: ${blank(mission.position.label)}
+Conditions: ${blank(mission.conditions.summary)}
 GPS Start: ${blank(session.gpsStart)}
 GPS End: ${blank(session.gpsEnd)}
 Primary Vessel: ${blank(session.primaryVessel)}
@@ -92,13 +94,73 @@ function checkpointBlock(mission: Mission) {
     .join('\n\n');
 }
 
+function medicalChecklistBlock(mission: Mission) {
+  const items = mission.medicalChecklist ?? [];
+  if (!items.length) {
+    return 'No medical checklist items recorded.';
+  }
+
+  return items
+    .map(
+      (item) => `${item.status.toUpperCase()} - ${item.title}
+  Cadence: ${item.cadence}
+  Protocol area: ${item.protocolArea}
+  Completed: ${item.completedAt ? format(new Date(item.completedAt), 'p') : '-'}
+  Follow-up: ${item.nextReviewAt ? format(new Date(item.nextReviewAt), 'p') : '-'}
+  Note: ${blank(item.lastNote)}`
+    )
+    .join('\n\n');
+}
+
+function medicalDailyChecklistBlock(mission: Mission) {
+  const records = mission.medicalDailyRecords ?? [];
+  if (!records.length) {
+    return 'No daily medical checklist records saved.';
+  }
+
+  const checklistById = new Map((mission.medicalChecklist ?? []).map((item) => [item.id, item]));
+
+  return records
+    .map(
+      (record) => `${format(new Date(`${record.date}T00:00:00`), 'PP')} - updated ${format(new Date(record.updatedAt), 'p')}
+${record.items
+  .map((item) => {
+    const checklistItem = checklistById.get(item.itemId);
+    return `  ${item.status.toUpperCase()} - ${checklistItem?.title ?? item.itemId}
+    Note: ${blank(item.note)}`;
+  })
+  .join('\n')}`
+    )
+    .join('\n\n');
+}
+
+function medicalSymptomBlock(mission: Mission) {
+  const entries = mission.medicalSymptomLog ?? [];
+  if (!entries.length) {
+    return 'No symptom changes logged.';
+  }
+
+  return entries
+    .map(
+      (entry) => `${format(new Date(entry.at), 'p')} - ${entry.symptom}
+  Severity: ${entry.severity}
+  Trend: ${entry.trend}
+  Status: ${entry.status}
+  Protocol area: ${entry.protocolArea}
+  Action taken: ${entry.actionTaken ? entry.actionTaken : 'No action recorded.'}
+  Follow-up: ${entry.nextReviewAt ? format(new Date(entry.nextReviewAt), 'p') : '-'}
+  Notes: ${blank(entry.notes)}`
+    )
+    .join('\n\n');
+}
+
 export function buildLogisticsReport(mission: Mission) {
   return `${sessionBlock(mission)}
 
-BOAT, SWIM, AND READINESS CHECKS
+OPERATING CHECKLIST
 ${checklistBlock(mission)}
 
-TIMELINE
+EVENT LOG
 ${mission.timeline
   .slice(0, 25)
   .map((event) => `${format(new Date(event.at), 'p')} - ${event.summary}: ${event.detail ?? ''}`)
@@ -128,7 +190,16 @@ Mood: ${wellness.mood}/10
 Motivation: ${wellness.motivation}/10
 Stress: ${wellness.stress}/10
 Anxiety: ${wellness.anxiety}/10
-Confidence: ${wellness.confidence}/10`;
+Confidence: ${wellness.confidence}/10
+
+MEDICAL PROTOCOL CHECKLIST
+${medicalChecklistBlock(mission)}
+
+DAILY MEDICAL CHECKLIST RECORDS
+${medicalDailyChecklistBlock(mission)}
+
+SYMPTOM / CHANGE LOG
+${medicalSymptomBlock(mission)}`;
 }
 
 export function buildWildlifeReport(mission: Mission) {

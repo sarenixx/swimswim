@@ -2,7 +2,7 @@
 
 Local-first PWA for coordinating high-risk endurance swim expeditions, now delivered in two distinct project modes:
 
-- `Live Operational Project` (`/`): fully populated Catherine expedition data, logistics, protocols, and active operations workflows.
+- `Operational Swim Source of Truth` (`/`): fully populated swim data, logistics, protocols, and active operations workflows.
 - `Reusable Template Project` (`/template`): generalized, client-ready framework with placeholders and onboarding guidance for new swimmers and routes.
 
 ## Multi-Phone Sync
@@ -17,6 +17,16 @@ The app still works locally with no backend. For Catherine's test swim, set up S
 6. Restart `npm run dev`.
 
 When configured, Postgres stores the shared mission snapshot, Supabase Storage stores WOWSA image files, and the app keeps local storage as a fallback.
+
+## Access Protection
+
+The app includes a client-side access gate. Set `VITE_SITE_ACCESS_SHA256` to the SHA-256 hash of the access code before deploying. Generate a hash locally with:
+
+```bash
+node -e "crypto.subtle.digest('SHA-256', new TextEncoder().encode('replace-with-access-code')).then((hash) => console.log([...new Uint8Array(hash)].map((byte) => byte.toString(16).padStart(2, '0')).join('')))"
+```
+
+For Vercel, add `VITE_SITE_ACCESS_SHA256` in Project Settings > Environment Variables for Production and Preview. Also enable Vercel Deployment Protection / Password Protection when available on the project plan, so access is blocked before the app bundle loads.
 
 ## Scripts
 

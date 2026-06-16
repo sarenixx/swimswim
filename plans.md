@@ -295,7 +295,7 @@ Quick log actions to expose on first release:
 
 Suggested seeded mission for validation:
 
-    Mission name: Catalina Channel Qualifier
+    Mission name: California coast swim
     Status: Active
     Feeding interval: 30 minutes
     Crew roles: Captain, Kayak 1, Kayak 2, Medic, Boat Lead, Media

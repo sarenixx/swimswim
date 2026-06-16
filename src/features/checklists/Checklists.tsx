@@ -54,7 +54,7 @@ export function Checklists() {
         <div className="panel-header">
           <div>
             <h3 className="panel-title">Packing + Readiness</h3>
-            <p className="panel-subtitle">Gear, safety, nutrition, documents, crew supplies, and timed swim checks.</p>
+            <p className="panel-subtitle">Gear, safety, nutrition, documents, crew supplies, and playbook-derived swim checks.</p>
           </div>
           <Check aria-hidden="true" />
         </div>
@@ -127,12 +127,13 @@ export function Checklists() {
                 <div className="split-row">
                   <div>
                     <div className="row-title">{item.title}</div>
-                    <div className="row-meta">
-                      {readinessDomainLabels[getChecklistDomain(item)]} ·{' '}
-                      Owner: {getCrewLabel(mission, item.ownerId)}
-                      {item.dueAt ? ` · Due ${formatClock(item.dueAt)}` : ''}
-                      {item.completedAt ? ` · Completed ${formatClock(item.completedAt)}` : ''}
-                    </div>
+                <div className="row-meta">
+                  {readinessDomainLabels[getChecklistDomain(item)]} ·{' '}
+                  Owner: {getCrewLabel(mission, item.ownerId)}
+                  {item.id.startsWith('playbook-') ? ' · SwimCalifornia_Playbook.docx' : ''}
+                  {item.dueAt ? ` · Due ${formatClock(item.dueAt)}` : ''}
+                  {item.completedAt ? ` · Completed ${formatClock(item.completedAt)}` : ''}
+                </div>
                   </div>
                   <span className={`status-pill ${status}`}>{status}</span>
                 </div>

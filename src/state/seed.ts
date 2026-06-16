@@ -19,6 +19,9 @@ export const emergencyLabels: Record<EmergencyKind, string> = {
 
 const iso = (date: Date) => date.toISOString();
 
+export const liveMissionName = 'California coast swim';
+export const legacyLiveMissionName = 'Catalina Channel Qualifier';
+
 export function buildLiveSeedMission(now = new Date()): Mission {
   const startedAt = subMinutes(now, 84);
   const shiftStart = subHours(now, 1);
@@ -29,7 +32,7 @@ export function buildLiveSeedMission(now = new Date()): Mission {
   return {
     id: 'mission-catalina-qualifier',
     mode: 'live',
-    name: 'Catalina Channel Qualifier',
+    name: liveMissionName,
     status: 'active',
     startedAt: iso(startedAt),
     feedingIntervalMinutes: 30,
@@ -69,31 +72,53 @@ export function buildLiveSeedMission(now = new Date()): Mission {
       }
     ],
     riskPlan: {
-      tideWindow: 'Flood easing after 08:40; reassess at each hour mark',
-      weatherSource: 'NOAA marine forecast, harbor report, support vessel observation',
+      tideWindow: 'Daily playbook review: wind, swell, fog, tides, temperature, red flag zone, and safe harbor options',
+      weatherSource: 'NOAA Marine Forecasts, Surfline/Mark Sponsler, CeNCOOS/WCOFS, COAMPS, HFR radar, vessel observation',
       abortConditions: [
         'Sustained swimmer distress or loss of coherent response',
-        'Water temperature response indicates escalating cold stress',
-        'Wind above 18 kt or confused swell preventing safe escort',
-        'Support vessel or kayak cannot maintain assigned formation',
-        'Lightning, dense fog, or authority-directed evacuation'
+        'Lead Water Safety medical veto: confusion, stumbling, fumbling, mumbling, uncontrolled shivering, oliguria, or lung crackles',
+        'Significant wave height exceeds 2m or section-specific JC threshold',
+        'Wind exceeds go/no-go threshold for direction: bow 12 kt, side 15 kt, stern 25 kt, or headwind above 20 kt',
+        'Zero-visibility fog or visibility below 1000m without PLB/AIS float and full lighting protocol',
+        'Swimmer cannot be seen from vessel due to swell',
+        'Confirmed shark within 1000m of swimmer',
+        'Loss of kayaker-vessel communication beyond agreed JC limit',
+        'Vessel emergency: mechanical failure, fire, flooding, unsafe navigation, or authority-directed evacuation'
       ],
       medicalConcerns: [
-        'Cold stress and dexterity loss',
-        'Nausea or repeated feed refusal',
-        'Shoulder pain altering stroke mechanics',
-        'Confusion, slurred responses, or unusual mood shift'
+        'Rhabdomyolysis signs: cola-colored urine, dipstick blood, extreme muscle pain, swelling, weakness, or lethargy',
+        'Hypothermia/cold stress: shivering, umbles, marked stroke-rate drop, or coordination loss',
+        'Weight loss: 5-10 lb below baseline is caution; more than 10 lb requires rest days and nourishment',
+        'Swimming-induced pulmonary edema: shortness of breath, SpO2 drop greater than 5%, rales, or crackles',
+        'Oliguria: failure to urinate for more than 10 hours despite fluid intake',
+        'Blood in urine or urine dipstick positive for blood after exertion',
+        'Loss or irregularity of menses as possible sign of energy imbalance',
+        'Skin maceration or soft tissue infection: redness, tenderness, swelling, papules, or blistering',
+        'Environmental water disease: diarrhea, abdominal pain, ear pain, itching, hearing loss, or discharge',
+        'Bites, stings, envenomations, debris, entanglement, or major marine injury'
       ],
       mitigationNotes: [
-        'Medic owns condition scan every 30 minutes',
-        'Captain owns go/no-go calls and abort confirmation',
-        'Kayak escort keeps backup nutrition within reach'
+        'Skipper/Captain Matthew Sessions has final authority on vessel safety and navigation',
+        'Lead Water Safety Jonathan Cahill owns in-water safety and swim go/no-go veto for medical reasons',
+        'Director of Logistics Sara Sheltz manages the daily captain, water safety, land support, and logistics communication loop',
+        'Lead Water Safety Personnel makes immediate onboard medical decisions with Medical Director and Lead Physician support',
+        'Daily mental health check-in, pre/post-swim vitals, post-swim urine collection, and trend review by Medical Director',
+        'No NSAIDs during the trip; use acetaminophen only per medical direction',
+        'Collect urine after each swim, use dipsticks when indicated, and rehydrate to clear or faint yellow urine output',
+        'Document care tier for every meaningful change: proactive care, minor care, moderate/urgent care, or emergency care',
+        'Persistent soreness over 2-3 days, worsening symptoms, blood in urine, imaging needs, or loss of menstrual cycle require medical team consultation',
+        'Stage active rewarming: dry quickly, electric blankets, chemical warmers to axilla/groin, and hot liquids only if fully alert',
+        'Jellyfish stings: remove tentacles, rinse with sea water, immerse in 40-45 C hot water for 20 minutes, avoid rubbing, vinegar, and fresh water',
+        'Major bite or injury: call 911, take vitals, keep patient horizontal, apply direct pressure, use tourniquet if needed and record application time',
+        'Completed crew medical questionnaires and insurance information stay in the onboard medical binder',
+        'WOWSA observer documents start/finish video, GPS coordinates, mileage, conditions, interruptions, and incident times',
+        'VHF Channel 16, ZeroSixZero tracking, Garmin InReach/Starlink, and daily email log remain active for significant decisions'
       ]
     },
     position: {
-      lat: 33.397,
-      lon: -118.412,
-      label: '3.8 nm off Catalina bearing 072',
+      lat: 41.955,
+      lon: -124.211,
+      label: 'Oregon border launch corridor toward Crescent City',
       updatedAt: iso(subMinutes(now, 2))
     },
     conditions: {
@@ -109,80 +134,80 @@ export function buildLiveSeedMission(now = new Date()): Mission {
     crew: [
       {
         id: 'crew-captain',
-        name: 'Maya Chen',
+        name: 'Matthew Sessions',
         role: 'captain',
-        phone: '+1 310 555 0141',
+        phone: '',
         shiftStart: iso(shiftStart),
         shiftEnd: iso(shiftEnd),
-        responsibilities: ['Final go/no-go authority', 'Broadcasts', 'Incident coordination'],
+        responsibilities: ['Final vessel safety and navigation authority', 'Route adjustments', 'USCG interface'],
         backupId: 'crew-safety',
-        backupPlan: 'Safety lead holds command channel if captain is occupied with vessel or emergency coordination.'
+        backupPlan: 'Lead Water Safety and First Mate pause swim operations while captain handles vessel or navigation safety.'
       },
       {
         id: 'crew-safety',
-        name: 'Luis Ortega',
+        name: 'Jonathan Cahill',
         role: 'safety',
-        phone: '+1 310 555 0182',
+        phone: '+1 650 224 1189',
         shiftStart: iso(shiftStart),
         shiftEnd: iso(shiftEnd),
-        responsibilities: ['Safety watch', 'Check-in cadence', 'Alert verification'],
+        responsibilities: ['Lead water safety', 'Escort kayak oversight', 'Shark watch', 'Medical veto'],
         backupId: 'crew-boat',
-        backupPlan: 'Boat lead maintains hazard watch while safety lead logs or escalates.'
+        backupPlan: 'First Mate or dedicated safety officer holds watch while JC handles direct swimmer or medical response.'
       },
       {
         id: 'crew-medical',
-        name: 'Dr. Priya Shah',
+        name: 'Katherine Susskind',
         role: 'medical',
-        phone: '+1 310 555 0188',
+        phone: '+1 408 472 2770',
         shiftStart: iso(shiftStart),
         shiftEnd: iso(nextShiftEnd),
-        responsibilities: ['Medical readiness', 'Condition assessment', 'Recovery protocol'],
+        responsibilities: ['Medical Director', 'Daily athlete assessment', 'Medical team coordination'],
         backupId: 'crew-captain',
-        backupPlan: 'Captain pauses operations and routes swimmer to external medical support if medic is unavailable.'
+        backupPlan: 'Lead Physician Jonathan Carter provides MD decision support and final medical authority when needed.'
       },
       {
         id: 'crew-kayak-1',
-        name: 'Ben Alvarez',
+        name: 'Jonathan Cahill',
         role: 'kayak-1',
-        phone: '+1 310 555 0158',
+        phone: '+1 650 224 1189',
         shiftStart: iso(shiftStart),
         shiftEnd: iso(shiftEnd),
-        responsibilities: ['Primary escort', 'Feeding handoff', 'Swimmer observation'],
+        responsibilities: ['Primary water escort', 'Feed station management', 'Environmental monitoring'],
         backupId: 'crew-kayak-2',
-        backupPlan: 'Relief kayak takes feeding handoff and visual escort if primary kayak rotates out.'
+        backupPlan: 'Relief water support maintains swimmer within 10 metres and carries waterproof VHF during rotation.'
       },
       {
         id: 'crew-kayak-2',
-        name: 'Nora Lee',
+        name: 'Heather Hitchcock',
         role: 'kayak-2',
-        phone: '+1 310 555 0177',
+        phone: '',
         shiftStart: iso(nextShiftStart),
         shiftEnd: iso(nextShiftEnd),
-        responsibilities: ['Relief escort', 'Spare nutrition', 'Condition confirmation'],
+        responsibilities: ['WOWSA observer', 'Data/tracking lead', 'Vessel-to-shore liaison'],
         backupId: 'crew-kayak-1',
-        backupPlan: 'Primary kayak keeps spare bottle if relief kayak is repositioning.'
+        backupPlan: 'First Mate or shore operations continues time, GPS, interruption, and incident documentation.'
       },
       {
         id: 'crew-boat',
-        name: 'Tom Reyes',
+        name: 'Maisie Bristow',
         role: 'boat',
-        phone: '+1 310 555 0137',
+        phone: '',
         shiftStart: iso(shiftStart),
         shiftEnd: iso(nextShiftEnd),
-        responsibilities: ['Vessel operations', 'Route bearing', 'Radio watch'],
+        responsibilities: ['First Mate', 'Deck operations', 'Watch schedule', 'Vessel systems'],
         backupId: 'crew-captain',
-        backupPlan: 'Captain assigns radio watch to safety lead while boat lead handles vessel maneuver.'
+        backupPlan: 'Captain or engineer/mechanical lead covers vessel systems during deck or emergency response.'
       },
       {
         id: 'crew-media',
-        name: 'Avery Brooks',
+        name: 'Billy Rinehart',
         role: 'media',
-        phone: '+1 310 555 0163',
+        phone: '+1 415 840 4168',
         shiftStart: iso(shiftStart),
         shiftEnd: iso(shiftEnd),
-        responsibilities: ['Content capture', 'Sponsor notes', 'Non-operational updates'],
+        responsibilities: ['PR and communications', 'Media outreach', 'Press coordination'],
         backupId: 'crew-safety',
-        backupPlan: 'Evidence and media work stops immediately if safety needs another recorder or lookout.'
+        backupPlan: 'All media pauses if safety, observer documentation, or vessel operations need another recorder or lookout.'
       }
     ],
     checklistItems: [
@@ -340,6 +365,41 @@ export function buildLiveSeedMission(now = new Date()): Mission {
         status: 'done'
       },
       {
+        id: 'playbook-pre-swim-briefing',
+        category: 'pre-swim',
+        title: 'Playbook 0600 pre-swim briefing completed: weather, medical, equipment, WOWSA, vessel position, and feed plan',
+        ownerId: 'crew-captain',
+        status: 'pending'
+      },
+      {
+        id: 'playbook-red-flag-zone-review',
+        category: 'pre-swim',
+        title: 'Red flag zone risks reviewed before entry',
+        ownerId: 'crew-safety',
+        status: 'pending'
+      },
+      {
+        id: 'playbook-vessel-predeparture',
+        category: 'pre-swim',
+        title: 'Vessel pre-departure checklist complete: fuel reserve, engine, bilge, GPS/AIS/radar, VHF 16, float plan',
+        ownerId: 'crew-boat',
+        status: 'pending'
+      },
+      {
+        id: 'playbook-emergency-readiness',
+        category: 'pre-swim',
+        title: 'Daily emergency readiness checked: AED, extinguishers, EPIRB/PLBs, first aid, oxygen, shark shield',
+        ownerId: 'crew-safety',
+        status: 'pending'
+      },
+      {
+        id: 'playbook-comms-loop-confirmed',
+        category: 'pre-swim',
+        title: 'Daily communication loop confirmed between captain, water safety, land support, and logistics',
+        ownerId: 'crew-captain',
+        status: 'pending'
+      },
+      {
         id: 'pre-crew-supplies',
         category: 'pre-swim',
         title: 'Crew supplies packed: water, food, sunscreen, dry bags, seasick meds',
@@ -376,6 +436,27 @@ export function buildLiveSeedMission(now = new Date()): Mission {
         id: 'post-recovery',
         category: 'post-swim',
         title: 'Warm handoff, vitals, and recovery nutrition logged',
+        ownerId: 'crew-medical',
+        status: 'pending'
+      },
+      {
+        id: 'playbook-post-swim-vitals',
+        category: 'post-swim',
+        title: 'Playbook post-swim vitals complete: temperature, HR, SpO2, breathing, cognitive, MSK, and fatigue check',
+        ownerId: 'crew-medical',
+        status: 'pending'
+      },
+      {
+        id: 'playbook-wowsa-daily-log',
+        category: 'post-swim',
+        title: 'WOWSA daily log complete: start/finish video, GPS, mileage, conditions, interruptions, and incidents',
+        ownerId: 'crew-kayak-2',
+        status: 'pending'
+      },
+      {
+        id: 'playbook-medication-log',
+        category: 'post-swim',
+        title: 'Medication issue log reviewed and controlled-drug witness requirements confirmed',
         ownerId: 'crew-medical',
         status: 'pending'
       },
@@ -593,25 +674,102 @@ export function buildLiveSeedMission(now = new Date()): Mission {
     ],
     contacts: [
       {
+        id: 'contact-onboard-medical',
+        name: 'Jonathan Cahill',
+        role: 'Lead Water Safety Personnel, OEC, WFR',
+        phone: '+1 650 224 1189',
+        channel: 'Onboard medical'
+      },
+      {
+        id: 'contact-medical-director',
+        name: 'Katherine Susskind',
+        role: 'Medical Director, ATC',
+        phone: '+1 408 472 2770',
+        channel: 'Medical director'
+      },
+      {
+        id: 'contact-lead-physician',
+        name: 'Jonathan Carter',
+        role: 'Lead Physician, MD',
+        phone: '+1 415 577 4564',
+        channel: 'Lead physician'
+      },
+      {
+        id: 'contact-secondary-physician',
+        name: 'Emily Kraus',
+        role: 'Secondary Physician, female endurance athlete expert',
+        phone: '+1 308 991 8055',
+        channel: 'Secondary physician'
+      },
+      {
+        id: 'contact-primary-care-provider',
+        name: 'Kim Juarez',
+        role: 'Primary Care Provider, NP',
+        phone: '',
+        channel: 'Primary care'
+      },
+      {
+        id: 'contact-research-analysis',
+        name: 'Rachel Prosser',
+        role: 'Research Assistant / Data Analysis',
+        phone: '+1 916 397 6632',
+        channel: 'Medical data'
+      },
+      {
+        id: 'contact-massage-therapy',
+        name: 'Sheri Burgoyne',
+        role: 'Massage Therapist',
+        phone: '+1 805 469 0628',
+        channel: 'Recovery'
+      },
+      {
+        id: 'contact-director-logistics',
+        name: 'Sara Sheltz',
+        role: 'Director of Logistics',
+        phone: '+1 818 307 7553',
+        channel: 'Operations loop'
+      },
+      {
+        id: 'contact-pr-lead',
+        name: 'Billy Rinehart',
+        role: 'PR and Communications Lead',
+        phone: '+1 415 840 4168',
+        channel: 'Media'
+      },
+      {
+        id: 'contact-boat-owner',
+        name: 'Kaipo Kelley',
+        role: 'Boat Owner / Logistics',
+        phone: '+1 760 696 0982',
+        channel: 'Vessel logistics'
+      },
+      {
+        id: 'contact-uscg-aux',
+        name: 'Carlo Facchin',
+        role: 'USCG Auxiliarist',
+        phone: '+1 408 314 1718',
+        channel: 'USCG support'
+      },
+      {
+        id: 'contact-ice-mother',
+        name: 'Robin Breed',
+        role: "ICE - athlete's mother",
+        phone: '+1 925 890 8889',
+        channel: 'Emergency family'
+      },
+      {
         id: 'contact-coast-guard',
-        name: 'US Coast Guard Sector LA/LB',
+        name: 'US Coast Guard',
         role: 'Rescue Coordination',
-        phone: '+1 310 521 3801',
+        phone: '16',
         channel: 'VHF 16'
       },
       {
-        id: 'contact-doctor',
-        name: 'Dr. Priya Shah',
-        role: 'Expedition Medic',
-        phone: '+1 310 555 0188',
-        channel: 'Medical'
-      },
-      {
-        id: 'contact-leadership',
-        name: 'Maya Chen',
-        role: 'Captain',
-        phone: '+1 310 555 0141',
-        channel: 'Captain'
+        id: 'contact-chp',
+        name: 'California Highway Patrol',
+        role: 'Highway emergency support',
+        phone: '+1 800 835 5247',
+        channel: '1-800-TELL-CHP'
       }
     ],
     protocols: [
@@ -630,10 +788,11 @@ export function buildLiveSeedMission(now = new Date()): Mission {
         kind: 'medical',
         title: 'Medical Issue Protocol',
         steps: [
-          { id: 'medical-1', order: 1, label: 'Medic takes command of clinical assessment', ownerRole: 'medical' },
-          { id: 'medical-2', order: 2, label: 'Captain confirms whether swim is paused or aborted', ownerRole: 'captain' },
-          { id: 'medical-3', order: 3, label: 'Boat lead prepares warming area and dry handoff', ownerRole: 'boat' },
-          { id: 'medical-4', order: 4, label: 'Safety lead starts incident log with vitals and times', ownerRole: 'safety' }
+          { id: 'medical-1', order: 1, label: 'Lead Water Safety Personnel makes the immediate onboard medical decision and stabilizes the athlete or crew member', ownerRole: 'medical' },
+          { id: 'medical-2', order: 2, label: 'Take vitals and document symptoms, time, location, and care tier: proactive/minor, moderate/urgent, or emergency', ownerRole: 'safety' },
+          { id: 'medical-3', order: 3, label: 'Consult Medical Director and Lead Physician on shore evaluation, labs, imaging, rest days, or continuation decision', ownerRole: 'captain' },
+          { id: 'medical-4', order: 4, label: 'If urgent care, emergency department, or medical evacuation is needed, follow EAP chain of command and prepare transport', ownerRole: 'boat' },
+          { id: 'medical-5', order: 5, label: 'Safety lead records decisions, contacts, vitals, medications, and next review time in the event log', ownerRole: 'safety' }
         ]
       },
       {
@@ -679,15 +838,15 @@ export function buildLiveSeedMission(now = new Date()): Mission {
     session: {
       swimmerName: 'Catherine Breed',
       swimmers: ['Catherine Breed'],
-      location: 'Catalina Channel',
-      plannedDistance: '20.2 miles',
-      plannedStartTime: '06:00',
-      gpsStart: '33.34590° N, 118.32780° W',
-      gpsEnd: '33.73610° N, 118.28350° W',
-      primaryVessel: 'Support vessel Bravo',
-      supportVessels: 'Kayak 1, Kayak 2, zodiac standby',
-      leadCrew: 'Maya Chen, Tom Reyes',
-      completedBy: 'Maya Chen',
+      location: 'Oregon Border to Mexican Border',
+      plannedDistance: '900+ miles',
+      plannedStartTime: 'June 29, 2026',
+      gpsStart: 'Oregon / California border launch corridor',
+      gpsEnd: 'Mexican border finish corridor',
+      primaryVessel: 'M/V Catalyst (52ft Beneteau)',
+      supportVessels: 'Escort kayak, tender, M/V Catalyst, shore support',
+      leadCrew: 'Matthew Sessions, Jonathan Cahill, Sara Sheltz',
+      completedBy: 'Sara Sheltz',
       operationsEmail: 'swimcalifornia2026@gmail.com'
     },
     medicalVitals: {
@@ -705,6 +864,181 @@ export function buildLiveSeedMission(now = new Date()): Mission {
       anxiety: 3,
       confidence: 8
     },
+    medicalChecklist: [
+      {
+        id: 'med-daily-mh-check',
+        protocolArea: 'mental-health',
+        cadence: 'daily',
+        title: 'Daily mental health check-in completed',
+        ownerId: 'crew-medical',
+        instructions: 'Capture mood, recovery, outlook, and any concerns for Medical Director trend review.',
+        status: 'pending'
+      },
+      {
+        id: 'med-pre-swim-vitals',
+        protocolArea: 'daily-monitoring',
+        cadence: 'pre-swim',
+        title: 'Pre-swim vitals recorded',
+        ownerId: 'crew-medical',
+        instructions: 'Record weight, blood pressure, oxygen saturation, heart rate, and baseline notes before swim.',
+        status: 'pending'
+      },
+      {
+        id: 'med-post-swim-vitals-urine',
+        protocolArea: 'daily-monitoring',
+        cadence: 'post-swim',
+        title: 'Post-swim vitals and urine collection completed',
+        ownerId: 'crew-medical',
+        instructions: 'Record post-swim vitals, collect urine, note color, and run dipstick when indicated.',
+        status: 'pending'
+      },
+      {
+        id: 'med-rhabdo-screen',
+        protocolArea: 'rhabdomyolysis',
+        cadence: 'post-swim',
+        title: 'Rhabdomyolysis screen clear',
+        ownerId: 'crew-medical',
+        instructions: 'Check for cola-colored urine, dipstick blood, extreme muscle pain, swelling, weakness, or lethargy.',
+        status: 'pending'
+      },
+      {
+        id: 'med-hypothermia-screen',
+        protocolArea: 'hypothermia',
+        cadence: 'as-needed',
+        title: 'Hypothermia/cold stress screen clear',
+        ownerId: 'crew-medical',
+        instructions: 'Watch shivering, umbles, stroke-rate drop, coordination loss, and active rewarming thresholds.',
+        status: 'pending'
+      },
+      {
+        id: 'med-weight-loss-review',
+        protocolArea: 'weight-loss',
+        cadence: 'daily',
+        title: 'Weight loss and fueling trend reviewed',
+        ownerId: 'crew-medical',
+        instructions: 'Flag 5-10 lb below baseline as caution; more than 10 lb requires rest days and nourishment.',
+        status: 'pending'
+      },
+      {
+        id: 'med-sipe-screen',
+        protocolArea: 'sipe',
+        cadence: 'as-needed',
+        title: 'Pulmonary edema screen clear',
+        ownerId: 'crew-medical',
+        instructions: 'Check shortness of breath, SpO2 drop greater than 5%, rales, or crackles; hold swim 24-48h if indicated.',
+        status: 'pending'
+      },
+      {
+        id: 'med-skin-soft-tissue-check',
+        protocolArea: 'skin-soft-tissue',
+        cadence: 'daily',
+        title: 'Skin, chafing, and soft tissue check completed',
+        ownerId: 'crew-medical',
+        instructions: 'Inspect breaks in skin, redness, tenderness, swelling, papules, blistering, wetsuit rub, and infection risk.',
+        status: 'pending'
+      },
+      {
+        id: 'med-water-illness-check',
+        protocolArea: 'water-illness',
+        cadence: 'daily',
+        title: 'Water illness symptoms reviewed',
+        ownerId: 'crew-medical',
+        instructions: 'Check diarrhea, abdominal pain, otitis externa signs, ear pain, itching, hearing loss, or discharge.',
+        status: 'pending'
+      },
+      {
+        id: 'med-bites-stings-debris-check',
+        protocolArea: 'bites-stings',
+        cadence: 'as-needed',
+        title: 'Bites, stings, debris, and entanglement risk reviewed',
+        ownerId: 'crew-safety',
+        instructions: 'Document jellyfish, bites, hooks, lines, debris, bleeding control, and evacuation decisions.',
+        status: 'pending'
+      },
+      {
+        id: 'med-crew-binder',
+        protocolArea: 'daily-monitoring',
+        cadence: 'pre-swim',
+        title: 'Crew medical binder confirmed onboard',
+        ownerId: 'crew-safety',
+        instructions: 'Confirm crew medical questionnaires, insurance information, and prescription medication log are stored onboard.',
+        status: 'pending'
+      },
+      {
+        id: 'med-weekly-team-review',
+        protocolArea: 'daily-monitoring',
+        cadence: 'weekly',
+        title: 'Weekly medical team review completed',
+        ownerId: 'crew-medical',
+        instructions: 'Review daily check-in data, vitals, urine notes, trends, and immediate red flags with the medical team and Catherine.',
+        status: 'pending'
+      },
+      {
+        id: 'med-monthly-menses-review',
+        protocolArea: 'daily-monitoring',
+        cadence: 'weekly',
+        title: 'Menses, energy balance, and hormonal health reviewed',
+        ownerId: 'crew-medical',
+        instructions: 'Monitor monthly bleed or irregularity despite IUD; flag loss or irregularity as possible energy imbalance risk.',
+        status: 'pending'
+      },
+      {
+        id: 'med-midpoint-labs',
+        protocolArea: 'daily-monitoring',
+        cadence: 'as-needed',
+        title: 'Midpoint bloodwork plan tracked',
+        ownerId: 'crew-medical',
+        instructions: 'Repeat labs around midpoint: iron, TSH, CBC, CK/chemistry as indicated, then compare against pre-swim results.',
+        status: 'pending'
+      },
+      {
+        id: 'med-post-swim-follow-up',
+        protocolArea: 'daily-monitoring',
+        cadence: 'post-swim',
+        title: 'Post-expedition medical follow-up planned',
+        ownerId: 'crew-medical',
+        instructions: 'Plan physical, bloodwork, urinalysis, and mental health follow-up after swim completion.',
+        status: 'pending'
+      },
+      {
+        id: 'med-prehab-recovery-routine',
+        protocolArea: 'skin-soft-tissue',
+        cadence: 'daily',
+        title: 'Daily pre-hab and recovery routine completed',
+        ownerId: 'crew-medical',
+        instructions: 'Track priming weights/bands, Theragun, Normatec, back routine, electrolytes, protein, foam roller, lacrosse ball, and soft tissue work.',
+        status: 'pending'
+      },
+      {
+        id: 'med-sleep-protocol',
+        protocolArea: 'mental-health',
+        cadence: 'daily',
+        title: 'Sleep protocol confirmed',
+        ownerId: 'crew-medical',
+        instructions: 'Confirm sleep mask and ear plugs; note sleep quality and recovery impact.',
+        status: 'pending'
+      },
+      {
+        id: 'med-prescription-inventory',
+        protocolArea: 'daily-monitoring',
+        cadence: 'daily',
+        title: 'Prescription medication inventory and usage log reviewed',
+        ownerId: 'crew-medical',
+        instructions: 'Record medication, dosage, amount, usage, reason, and medic signature whenever prescription medication is used.',
+        status: 'pending'
+      },
+      {
+        id: 'med-crew-preparticipation-forms',
+        protocolArea: 'daily-monitoring',
+        cadence: 'pre-swim',
+        title: 'Crew medical pre-participation forms complete',
+        ownerId: 'crew-safety',
+        instructions: 'Confirm crew health statement, medical information, provider physical form, emergency contacts, medications, allergies, and dietary restrictions.',
+        status: 'pending'
+      }
+    ],
+    medicalDailyRecords: [],
+    medicalSymptomLog: [],
     wildlifeSightings: [],
     wowsaPhotos: [],
     expeditionCheckpoints: [
@@ -1410,6 +1744,145 @@ export function buildTemplateSeedMission(now = new Date()): Mission {
       anxiety: 5,
       confidence: 5
     },
+    medicalChecklist: [
+      {
+        id: 'med-daily-mh-check',
+        protocolArea: 'mental-health',
+        cadence: 'daily',
+        title: 'Daily mental health check-in completed',
+        ownerId: 'crew-medical',
+        instructions: 'Capture mood, recovery, outlook, and concerns for medical trend review.',
+        status: 'pending'
+      },
+      {
+        id: 'med-pre-swim-vitals',
+        protocolArea: 'daily-monitoring',
+        cadence: 'pre-swim',
+        title: 'Pre-swim vitals recorded',
+        ownerId: 'crew-medical',
+        instructions: 'Record weight, blood pressure, oxygen saturation, heart rate, and baseline notes.',
+        status: 'pending'
+      },
+      {
+        id: 'med-post-swim-vitals-urine',
+        protocolArea: 'daily-monitoring',
+        cadence: 'post-swim',
+        title: 'Post-swim vitals and urine collection completed',
+        ownerId: 'crew-medical',
+        instructions: 'Record post-swim vitals, collect urine, and document color or dipstick results when indicated.',
+        status: 'pending'
+      },
+      {
+        id: 'med-rhabdo-screen',
+        protocolArea: 'rhabdomyolysis',
+        cadence: 'post-swim',
+        title: 'Rhabdomyolysis screen clear',
+        ownerId: 'crew-medical',
+        instructions: 'Check urine color, dipstick blood, severe muscle pain, swelling, weakness, or lethargy.',
+        status: 'pending'
+      },
+      {
+        id: 'med-hypothermia-screen',
+        protocolArea: 'hypothermia',
+        cadence: 'as-needed',
+        title: 'Hypothermia/cold stress screen clear',
+        ownerId: 'crew-medical',
+        instructions: 'Watch shivering, umbles, stroke-rate drop, coordination loss, and active rewarming thresholds.',
+        status: 'pending'
+      },
+      {
+        id: 'med-skin-soft-tissue-check',
+        protocolArea: 'skin-soft-tissue',
+        cadence: 'daily',
+        title: 'Skin, chafing, and soft tissue check completed',
+        ownerId: 'crew-medical',
+        instructions: 'Inspect breaks in skin, redness, tenderness, swelling, blistering, wetsuit rub, and infection risk.',
+        status: 'pending'
+      },
+      {
+        id: 'med-crew-binder',
+        protocolArea: 'daily-monitoring',
+        cadence: 'pre-swim',
+        title: 'Crew medical binder confirmed onboard',
+        ownerId: 'crew-safety',
+        instructions: 'Confirm crew forms, insurance information, and medication log are stored onboard.',
+        status: 'pending'
+      },
+      {
+        id: 'med-weekly-team-review',
+        protocolArea: 'daily-monitoring',
+        cadence: 'weekly',
+        title: 'Weekly medical team review completed',
+        ownerId: 'crew-medical',
+        instructions: 'Review daily medical data, vitals, symptom changes, and trend concerns with the medical team and swimmer.',
+        status: 'pending'
+      },
+      {
+        id: 'med-monthly-menses-review',
+        protocolArea: 'daily-monitoring',
+        cadence: 'weekly',
+        title: 'Menses, energy balance, and hormonal health reviewed',
+        ownerId: 'crew-medical',
+        instructions: 'Monitor menses or irregularity as an energy-balance and bone-stress risk marker.',
+        status: 'pending'
+      },
+      {
+        id: 'med-midpoint-labs',
+        protocolArea: 'daily-monitoring',
+        cadence: 'as-needed',
+        title: 'Midpoint bloodwork plan tracked',
+        ownerId: 'crew-medical',
+        instructions: 'Plan repeat labs and compare to pre-swim results according to the medical protocol.',
+        status: 'pending'
+      },
+      {
+        id: 'med-post-swim-follow-up',
+        protocolArea: 'daily-monitoring',
+        cadence: 'post-swim',
+        title: 'Post-expedition medical follow-up planned',
+        ownerId: 'crew-medical',
+        instructions: 'Plan physical, bloodwork, urinalysis, and mental health follow-up after swim completion.',
+        status: 'pending'
+      },
+      {
+        id: 'med-prehab-recovery-routine',
+        protocolArea: 'skin-soft-tissue',
+        cadence: 'daily',
+        title: 'Daily pre-hab and recovery routine completed',
+        ownerId: 'crew-medical',
+        instructions: 'Track priming, rehab, recovery, soft tissue work, electrolytes, protein, and sleep-support routines.',
+        status: 'pending'
+      },
+      {
+        id: 'med-sleep-protocol',
+        protocolArea: 'mental-health',
+        cadence: 'daily',
+        title: 'Sleep protocol confirmed',
+        ownerId: 'crew-medical',
+        instructions: 'Confirm sleep mask and ear plugs; note sleep quality and recovery impact.',
+        status: 'pending'
+      },
+      {
+        id: 'med-prescription-inventory',
+        protocolArea: 'daily-monitoring',
+        cadence: 'daily',
+        title: 'Prescription medication inventory and usage log reviewed',
+        ownerId: 'crew-medical',
+        instructions: 'Document medication, dosage, amount, usage, reason, and signature whenever prescription medication is used.',
+        status: 'pending'
+      },
+      {
+        id: 'med-crew-preparticipation-forms',
+        protocolArea: 'daily-monitoring',
+        cadence: 'pre-swim',
+        title: 'Crew medical pre-participation forms complete',
+        ownerId: 'crew-safety',
+        instructions: 'Confirm health statement, medical information, provider physical form, emergency contacts, medications, allergies, and restrictions.',
+        status: 'pending'
+      }
+    ],
+    medicalDailyRecords: [],
+    medicalSymptomLog: [],
     wildlifeSightings: [],
     wowsaPhotos: [],
     expeditionCheckpoints: [

@@ -51,6 +51,24 @@ export type Severity = 'info' | 'warning' | 'critical';
 
 export type SwimmerConditionLevel = 'steady' | 'watch' | 'fatigue' | 'distress';
 
+export type MedicalProtocolArea =
+  | 'daily-monitoring'
+  | 'rhabdomyolysis'
+  | 'hypothermia'
+  | 'weight-loss'
+  | 'sipe'
+  | 'skin-soft-tissue'
+  | 'water-illness'
+  | 'bites-stings'
+  | 'mental-health'
+  | 'other';
+
+export type MedicalChecklistCadence = 'pre-swim' | 'post-swim' | 'daily' | 'weekly' | 'as-needed';
+export type MedicalChecklistStatus = 'pending' | 'done' | 'watch' | 'escalated';
+export type MedicalSymptomSeverity = 'watch' | 'caution' | 'urgent' | 'emergency';
+export type MedicalSymptomTrend = 'new' | 'worse' | 'same' | 'improving' | 'resolved';
+export type MedicalSymptomStatus = 'open' | 'monitoring' | 'resolved';
+
 export type QuickLogKind =
   | 'feeding-completed'
   | 'fatigue-observed'
@@ -249,6 +267,52 @@ export interface WellnessRatings {
   confidence: number;
 }
 
+export interface MedicalChecklistItem {
+  id: string;
+  protocolArea: MedicalProtocolArea;
+  cadence: MedicalChecklistCadence;
+  title: string;
+  ownerId: string;
+  instructions: string;
+  status: MedicalChecklistStatus;
+  completedAt?: string;
+  completedBy?: string;
+  lastNote?: string;
+  nextReviewAt?: string;
+}
+
+export interface MedicalDailyChecklistItemRecord {
+  itemId: string;
+  status: MedicalChecklistStatus;
+  note: string;
+  completedAt?: string;
+  completedBy?: string;
+}
+
+export interface MedicalDailyRecord {
+  id: string;
+  date: string;
+  updatedAt: string;
+  updatedBy: string;
+  items: MedicalDailyChecklistItemRecord[];
+}
+
+export interface MedicalSymptomEntry {
+  id: string;
+  at: string;
+  actorId: string;
+  protocolArea: MedicalProtocolArea;
+  symptom: string;
+  severity: MedicalSymptomSeverity;
+  trend: MedicalSymptomTrend;
+  actionTaken: string;
+  notes: string;
+  nextReviewAt?: string;
+  status: MedicalSymptomStatus;
+  resolvedAt?: string;
+  resolvedBy?: string;
+}
+
 export interface WildlifeSighting {
   id: string;
   species: string;
@@ -327,6 +391,9 @@ export interface Mission {
   session: DailySessionInfo;
   medicalVitals: MedicalVitals;
   wellnessRatings: WellnessRatings;
+  medicalChecklist: MedicalChecklistItem[];
+  medicalDailyRecords: MedicalDailyRecord[];
+  medicalSymptomLog: MedicalSymptomEntry[];
   wildlifeSightings: WildlifeSighting[];
   wowsaPhotos: WowsaPhotoEntry[];
   expeditionCheckpoints: ExpeditionCheckpoint[];

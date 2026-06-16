@@ -2,7 +2,7 @@ import {
   AlertTriangle,
   Ban,
   CalendarClock,
-  Camera,
+  ClipboardCheck,
   ChevronDown,
   Clock3,
   ContactRound,
@@ -28,7 +28,6 @@ import {
   getCrewLabel,
   getElapsedLabel,
   getMinutesUntil,
-  getNextCriticalAction,
   getOperationalCadence,
   getRecentTimeline
 } from '../../state/selectors';
@@ -193,7 +192,6 @@ export function MissionControl() {
   const resetFeedingPlan = useMissionStore((state) => state.resetFeedingPlan);
   const updateSafetyPlan = useMissionStore((state) => state.updateSafetyPlan);
   const resetSafetyPlan = useMissionStore((state) => state.resetSafetyPlan);
-  const criticalAction = getNextCriticalAction(mission, now);
   const activeCrew = getActiveCrew(mission, now);
   const activeAlerts = getActiveAlerts(mission);
   const recentTimeline = getRecentTimeline(mission, 5);
@@ -384,43 +382,6 @@ export function MissionControl() {
 
   return (
     <div className="page-grid mvp-dashboard">
-      <section className={`panel critical-action span-12 ${criticalAction.severity}`} aria-labelledby="critical-action-title">
-        <div>
-          <p className="page-kicker">Right Now</p>
-          <h3 className="critical-title" id="critical-action-title">
-            {criticalAction.title}
-          </h3>
-        </div>
-        <p className="critical-detail">{criticalAction.detail}</p>
-        <div className="critical-meta">
-          {criticalAction.dueAt ? <span className="sync-pill online">{formatClock(criticalAction.dueAt)}</span> : null}
-          {criticalAction.intent === 'feeding' ? (
-            <button className="button primary" type="button" onClick={() => logQuickAction('feeding-completed', activeActorId)}>
-              <Utensils aria-hidden="true" />
-              Log feeding
-            </button>
-          ) : null}
-          {criticalAction.intent === 'timeline' ? (
-            <Link className="button primary" to={getMissionPath(mission.mode, 'live-operations')}>
-              <Clock3 aria-hidden="true" />
-              Timeline
-            </Link>
-          ) : null}
-          {criticalAction.intent === 'wowsa' ? (
-            <Link className="button primary" to={`${getMissionPath(mission.mode, 'wowsa')}#wowsa-capture`}>
-              <Camera aria-hidden="true" />
-              Take WOWSA photo
-            </Link>
-          ) : null}
-          {criticalAction.intent === 'protocol' ? (
-            <Link className="button danger" to={getMissionPath(mission.mode, 'safety')}>
-              <ShieldAlert aria-hidden="true" />
-              Protocol
-            </Link>
-          ) : null}
-        </div>
-      </section>
-
       {mission.mode === 'template' ? (
         <section className="panel span-12 template-onboarding" aria-labelledby="template-onboarding-title">
           <div className="panel-header">
@@ -505,7 +466,7 @@ export function MissionControl() {
             />
             <MvpFact label="Location" value={mission.session.location} note={mission.position.label} />
             <MvpFact label="Goal" value={mission.session.plannedDistance} note={`Status: ${mission.status}`} />
-            <MvpFact label="Now" value={getElapsedLabel(mission, now)} note={criticalAction.title} />
+            <MvpFact label="Now" value={getElapsedLabel(mission, now)} note="Mission clock" />
           </div>
         )}
       </EditableCard>

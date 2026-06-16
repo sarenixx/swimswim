@@ -52,12 +52,18 @@ export function AppShell() {
     };
   }, [setOnlineStatus]);
 
-  const currentNavItem = navItems.find((item, index) => {
+  const currentHashNavItem = navItems.find((item) => {
+    const [itemPathname, itemHash] = item.to.split('#');
+    return Boolean(itemHash) && location.pathname === itemPathname && location.hash === `#${itemHash}`;
+  });
+  const currentNavItem = currentHashNavItem ?? navItems.find((item, index) => {
+    const [itemPathname] = item.to.split('#');
+
     if (index === 0) {
-      return location.pathname === item.to;
+      return location.pathname === itemPathname;
     }
 
-    return location.pathname === item.to || location.pathname.startsWith(`${item.to}/`);
+    return location.pathname === itemPathname || location.pathname.startsWith(`${itemPathname}/`);
   });
 
   return (

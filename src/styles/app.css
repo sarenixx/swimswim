@@ -32,6 +32,46 @@ a {
   text-decoration: none;
 }
 
+.access-gate {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: var(--space-4);
+  background:
+    linear-gradient(180deg, rgba(247, 250, 252, 0.92), rgba(227, 243, 251, 0.92)),
+    var(--color-foam);
+}
+
+.access-card {
+  display: grid;
+  gap: var(--space-4);
+  width: min(100%, 420px);
+  padding: var(--space-6);
+  background: var(--color-white);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  box-shadow: 0 24px 70px rgba(8, 27, 45, 0.16);
+}
+
+.access-card img {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+}
+
+.access-title {
+  margin: 0;
+  color: var(--color-night);
+  font-size: 1.7rem;
+  letter-spacing: 0;
+}
+
+.access-error {
+  margin: 0;
+  color: var(--color-alert);
+  font-weight: 800;
+}
+
 .app-shell {
   display: grid;
   grid-template-columns: 268px minmax(0, 1fr);
@@ -268,7 +308,8 @@ a {
 }
 
 .status-pill.preparing,
-.status-pill.pending {
+.status-pill.pending,
+.severity-pill.normal {
   color: var(--color-ink);
   background: #e8f1f7;
 }
@@ -874,6 +915,186 @@ a {
   min-width: 180px;
 }
 
+.medical-source-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.medical-record-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) minmax(0, 1.1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.medical-log-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.medical-submit {
+  justify-self: start;
+}
+
+.medical-checklist-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.medical-check-card {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: #f9fbfd;
+  border: 1px solid var(--color-line);
+  border-left: 5px solid #bfd3e4;
+  border-radius: var(--radius-card);
+}
+
+.medical-check-card.done {
+  border-left-color: #41a675;
+}
+
+.medical-check-card.watch {
+  border-left-color: var(--color-caution);
+}
+
+.medical-check-card.escalated {
+  border-left-color: var(--color-alert);
+}
+
+.medical-check-instructions {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}
+
+.medical-check-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 0.65fr);
+  gap: var(--space-2);
+}
+
+.daily-checklist-toolbar {
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: end;
+  margin-bottom: var(--space-3);
+}
+
+.daily-checklist-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  min-height: 42px;
+  padding: 0 var(--space-3);
+  background: #f4f8fb;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+}
+
+.stat-value {
+  color: var(--color-night);
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.daily-checklist-list {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.daily-checklist-row {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: #f9fbfd;
+  border: 1px solid var(--color-line);
+  border-left: 5px solid #bfd3e4;
+  border-radius: var(--radius-card);
+}
+
+.daily-checklist-row.done {
+  border-left-color: #41a675;
+}
+
+.daily-checklist-row.watch {
+  border-left-color: var(--color-caution);
+}
+
+.daily-checklist-row.escalated {
+  border-left-color: var(--color-alert);
+}
+
+.daily-check-toggle {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  gap: var(--space-2);
+  align-items: start;
+  cursor: pointer;
+}
+
+.daily-check-toggle input {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+}
+
+.daily-check-note {
+  flex: 1 1 260px;
+}
+
+.daily-checklist-history {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.history-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.history-chip {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+  min-height: 38px;
+  padding: 0 var(--space-3);
+  color: var(--color-night);
+  font-weight: 800;
+  background: var(--color-white);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+}
+
+.history-chip.active {
+  color: var(--color-white);
+  background: var(--color-ocean);
+  border-color: var(--color-ocean);
+}
+
+.history-chip span {
+  color: inherit;
+  font-size: 0.78rem;
+  opacity: 0.78;
+}
+
+.source-list-heading {
+  margin: 0 0 var(--space-2);
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
 .timeline-list,
 .row-list,
 .alert-list,
@@ -936,6 +1157,18 @@ a {
   flex-wrap: wrap;
   gap: var(--space-2);
   align-items: center;
+}
+
+.backup-status {
+  margin: var(--space-3) 0 0;
+}
+
+.backup-status.success {
+  color: #0b5b3f;
+}
+
+.backup-status.error {
+  color: var(--color-alert);
 }
 
 .checklist-tabs,
@@ -1185,6 +1418,31 @@ input[type="range"] {
   font-size: 0.9rem;
 }
 
+.risk-source-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  margin-top: var(--space-3);
+  color: var(--color-muted);
+  font-size: 0.86rem;
+}
+
+.risk-source-strip > span:not(.severity-pill) {
+  padding: 6px 9px;
+  background: #f4f8fb;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+}
+
+.compact-risk-list {
+  gap: var(--space-2);
+}
+
+.compact-risk-list .list-row {
+  padding: var(--space-3);
+}
+
 .risk-contact-grid {
   margin-top: var(--space-3);
 }
@@ -1307,6 +1565,10 @@ input[type="range"] {
   border-radius: var(--radius-card);
 }
 
+.empty-state.compact {
+  min-height: 56px;
+}
+
 @media (max-width: 1180px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -1377,6 +1639,12 @@ input[type="range"] {
 
   .two-column-form,
   .condition-scale,
+  .medical-source-grid,
+  .medical-record-grid,
+  .medical-log-form,
+  .medical-checklist-grid,
+  .medical-check-controls,
+  .daily-checklist-toolbar,
   .setup-field-grid,
   .edit-form-grid,
   .edit-row-card,
@@ -1390,6 +1658,15 @@ input[type="range"] {
 }
 
 @media (max-width: 560px) {
+  .daily-check-toggle {
+    grid-template-columns: 22px minmax(0, 1fr);
+  }
+
+  .daily-check-toggle .severity-pill {
+    grid-column: 2;
+    justify-self: start;
+  }
+
   .brand {
     grid-template-columns: 48px 1fr;
   }

@@ -29,11 +29,11 @@ fi
 if ss -lnt | awk '{print $4}' | grep -Eq ":${PREVIEW_PORT}$"; then
   echo "Preview server already listening on ${PREVIEW_PORT}."
 else
-  echo "Starting static preview server on ${PREVIEW_PORT}..."
-  (
-    cd "${ROOT_DIR}"
-    nohup npx --yes serve -s dist -l "${PREVIEW_PORT}" >"${PREVIEW_LOG}" 2>&1 &
-  )
+  echo "Starting Vite preview server on ${PREVIEW_PORT}..."
+  setsid -f bash -c '
+    cd "$1"
+    exec npm run preview -- --port "$2" --strictPort >"$3" 2>&1 < /dev/null
+  ' _ "${ROOT_DIR}" "${PREVIEW_PORT}" "${PREVIEW_LOG}"
 fi
 
 if pgrep -f "cloudflared tunnel --no-autoupdate --url http://127.0.0.1:${PREVIEW_PORT}" >/dev/null 2>&1; then
@@ -55,12 +55,11 @@ echo "Starting Cloudflare quick tunnel..."
 url=""
 for attempt in 1 2 3; do
   : >"${TUNNEL_LOG}"
-  (
-    cd "${ROOT_DIR}"
-    nohup npx --yes cloudflared tunnel --no-autoupdate --url "http://127.0.0.1:${PREVIEW_PORT}" >"${TUNNEL_LOG}" 2>&1 &
-    tunnel_pid=$!
-    echo "${tunnel_pid}" >"${LOG_DIR}/preview-tunnel.pid"
-  )
+  setsid -f bash -c '
+    echo "$$" > "$1"
+    cd "$2"
+    exec npx --yes cloudflared tunnel --no-autoupdate --url "$3" >"$4" 2>&1 < /dev/null
+  ' _ "${LOG_DIR}/preview-tunnel.pid" "${ROOT_DIR}" "http://127.0.0.1:${PREVIEW_PORT}" "${TUNNEL_LOG}"
 
   for _ in $(seq 1 30); do
     url="$(extract_url "${TUNNEL_LOG}")"

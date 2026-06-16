@@ -61,12 +61,12 @@ describe('mission-critical flows', () => {
     useTemplateMissionStore.getState().setOnlineStatus(true);
   });
 
-  it('surfaces the WOWSA GPS photo capture as the critical action', async () => {
+  it('opens the dashboard without a Right Now prompt', async () => {
     renderRoute('/');
 
-    expect(await screen.findByText('Right Now')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /Take WOWSA GPS evidence photo/i })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Take WOWSA photo/i })).toBeInTheDocument();
+    expect(await screen.findByRole('region', { name: /Swim Overview/i })).toBeInTheDocument();
+    expect(screen.queryByText('Right Now')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /Prepare nutrition bottle and recovery backup/i })).not.toBeInTheDocument();
     expect(screen.getByText('Active Alerts')).toBeInTheDocument();
   });
 
@@ -101,9 +101,11 @@ describe('mission-critical flows', () => {
   it('opens conditions and risk with abort criteria visible', async () => {
     renderRoute('/conditions-risk');
 
-    expect(await screen.findByText('Abort Conditions')).toBeInTheDocument();
-    expect(screen.getByText(/Flood easing/i)).toBeInTheDocument();
-    expect(screen.getByText(/Wind above 18 kt/i)).toBeInTheDocument();
+    expect(await screen.findByText('Stop Swim If')).toBeInTheDocument();
+    expect(screen.getByText(/SwimCalifornia_Playbook.docx/i)).toBeInTheDocument();
+    expect(screen.getByText(/Wind exceeds go\/no-go threshold/i)).toBeInTheDocument();
+    expect(screen.getByText(/Confirmed shark within 1000m/i)).toBeInTheDocument();
+    expect(screen.queryByText('Risk Controls')).not.toBeInTheDocument();
   });
 
   it('auto-captures GPS when saving WOWSA photo evidence', async () => {
@@ -197,8 +199,9 @@ describe('mission-critical flows', () => {
     renderRoute('/crew');
 
     expect(await screen.findByText('Coverage')).toBeInTheDocument();
-    expect(screen.getAllByText(/Backup: Luis Ortega/i).length).toBeGreaterThan(0);
-    expect(screen.getByText(/Safety lead holds command channel/i)).toBeInTheDocument();
+    expect(screen.getAllByText('Matthew Sessions').length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Backup: Jonathan Cahill/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Lead Water Safety and First Mate pause swim operations/i)).toBeInTheDocument();
   });
 
   it('adds a timestamped timeline entry from quick log', async () => {
@@ -213,11 +216,104 @@ describe('mission-critical flows', () => {
     expect(state.mission.alerts[0].kind).toBe('fatigue');
   });
 
+  it('records safety and risk edits as shared document changes', async () => {
+    const user = userEvent.setup();
+    renderRoute('/');
+
+    const safetyPlan = await screen.findByRole('region', { name: /Safety Plan/i });
+    await user.click(within(safetyPlan).getByRole('button', { name: /Edit/i }));
+    await user.clear(within(safetyPlan).getByLabelText(/Weather source/i));
+    await user.type(within(safetyPlan).getByLabelText(/Weather source/i), 'NOAA morning update and vessel observation');
+    await user.click(within(safetyPlan).getByRole('button', { name: /Save/i }));
+
+    const state = useMissionStore.getState();
+    expect(state.mission.riskPlan.weatherSource).toBe('NOAA morning update and vessel observation');
+    expect(state.mission.timeline[0].summary).toBe('Safety/risk plan updated');
+    expect(state.mission.timeline[0].actorId).toBe(state.activeActorId);
+  });
+
+  it('exports the complete operating record as the source of truth', async () => {
+    renderRoute('/logs');
+
+    expect(await screen.findByText('Operational swim source of truth')).toBeInTheDocument();
+
+    const jsonLink = screen.getByRole('link', { name: /^JSON$/i });
+    const encodedRecord = jsonLink.getAttribute('href')?.replace('data:application/json;charset=utf-8,', '') ?? '';
+    const record = JSON.parse(decodeURIComponent(encodedRecord));
+
+    expect(record.recordType).toBe('operational-swim-source-of-truth');
+    expect(record.mission.name).toBe('California coast swim');
+    expect(record.mission.session.location).toBe('Oregon Border to Mexican Border');
+    expect(record.mission.session.primaryVessel).toBe('M/V Catalyst (52ft Beneteau)');
+    expect(record.mission.crew.length).toBeGreaterThan(0);
+    expect(record.mission.contacts.some((contact: { id: string }) => contact.id === 'contact-onboard-medical')).toBe(true);
+    expect(record.mission.contacts.some((contact: { id: string }) => contact.id === 'contact-director-logistics')).toBe(true);
+    expect(record.mission.contacts.some((contact: { id: string }) => contact.id === 'contact-research-analysis')).toBe(true);
+    expect(record.mission.checklistItems.some((item: { id: string }) => item.id === 'playbook-pre-swim-briefing')).toBe(true);
+    expect(record.mission.operationalTimeline.length).toBeGreaterThan(0);
+    expect(record.mission.medicalChecklist.length).toBeGreaterThan(0);
+    expect(record.mission.medicalChecklist.some((item: { id: string }) => item.id === 'med-prescription-inventory')).toBe(true);
+    expect(record.mission.medicalChecklist.some((item: { id: string }) => item.id === 'med-weekly-team-review')).toBe(true);
+    expect(record.mission.medicalDailyRecords).toEqual([]);
+    expect(record.mission.medicalSymptomLog).toEqual([]);
+    expect(record.mission.riskPlan.abortConditions.length).toBeGreaterThan(0);
+    expect(record.mission.riskPlan.medicalConcerns).toContain(
+      'Hypothermia/cold stress: shivering, umbles, marked stroke-rate drop, or coordination loss'
+    );
+    expect(record.mission.riskPlan.medicalConcerns).toContain(
+      'Oliguria: failure to urinate for more than 10 hours despite fluid intake'
+    );
+  });
+
+  it('records medical symptoms and checklist changes into the living medical record', async () => {
+    const user = userEvent.setup();
+    renderRoute('/safety');
+
+    expect(await screen.findByText('Medical Living Record')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Email medical record/i })).toHaveAttribute(
+      'href',
+      expect.stringContaining('mailto:swimcalifornia2026@gmail.com')
+    );
+    expect(screen.getByRole('button', { name: /Log and email change/i })).toBeDisabled();
+    await user.selectOptions(screen.getByLabelText(/^Severity$/i), 'urgent');
+    await user.selectOptions(screen.getByLabelText(/^Trend$/i), 'new');
+    await user.type(screen.getByLabelText(/Symptom \/ change/i), 'Cola-colored urine after swim');
+    await user.type(screen.getByLabelText(/Action taken/i), 'Collected urine, held NSAIDs, contacted Medical Director.');
+    await user.type(screen.getByLabelText(/^Notes$/i), 'Dipstick pending.');
+    await user.click(screen.getByRole('button', { name: /Log and email change/i }));
+
+    expect(screen.getByText('Cola-colored urine after swim')).toBeInTheDocument();
+    expect(useMissionStore.getState().mission.medicalSymptomLog[0].severity).toBe('urgent');
+    expect(useMissionStore.getState().mission.alerts[0].kind).toBe('medical');
+
+    await user.type(screen.getByLabelText(/Symptom \/ change/i), 'Right shoulder soreness');
+    await user.click(screen.getByRole('button', { name: /Log and email change/i }));
+
+    expect(screen.getByText('Right shoulder soreness')).toBeInTheDocument();
+    expect(screen.getAllByText('No action recorded.').length).toBeGreaterThan(0);
+    expect(useMissionStore.getState().mission.medicalSymptomLog[0].actionTaken).toBe('');
+
+    await user.type(screen.getByLabelText('Daily note for Pre-swim vitals recorded'), 'BP and SpO2 baseline complete.');
+    await user.click(screen.getByRole('checkbox', { name: /Complete Pre-swim vitals recorded/i }));
+
+    const dailyRecord = useMissionStore.getState().mission.medicalDailyRecords[0];
+    const savedDailyItem = dailyRecord.items.find((item) => item.itemId === 'med-pre-swim-vitals');
+    expect(savedDailyItem?.status).toBe('done');
+    expect(savedDailyItem?.note).toBe('BP and SpO2 baseline complete.');
+    expect(dailyRecord.items.length).toBe(useMissionStore.getState().mission.medicalChecklist.length);
+    expect(useMissionStore.getState().mission.timeline[0].summary).toBe('Daily medical checklist done');
+  });
+
   it('shows one protocol entry point without raising an alert signal', async () => {
     const user = userEvent.setup();
     renderRoute('/safety');
 
     expect(await screen.findByText('Protocol Scenarios')).toBeInTheDocument();
+    expect(screen.getByText('Medical Source of Truth')).toBeInTheDocument();
+    expect(screen.getByText('Daily Medical Checklist')).toBeInTheDocument();
+    expect(screen.getByText('Weekly medical team review completed')).toBeInTheDocument();
+    expect(screen.getByText('Prescription medication inventory and usage log reviewed')).toBeInTheDocument();
+    expect(screen.getAllByText('Jonathan Cahill').length).toBeGreaterThan(0);
     expect(screen.getByRole('link', { name: 'Protocol' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Medical' })).not.toBeInTheDocument();
     const statusBeforeScenarioReview = useMissionStore.getState().mission.status;

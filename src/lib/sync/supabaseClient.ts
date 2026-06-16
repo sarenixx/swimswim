@@ -43,6 +43,29 @@ export function isRemoteSyncAvailable() {
   return Boolean(supabase);
 }
 
+export async function backupMissionSnapshot(mission: Mission) {
+  if (!supabase) {
+    throw new Error('Supabase backup is not configured.');
+  }
+
+  const updatedAt = new Date().toISOString();
+  const { error } = await supabase.from('mission_snapshots').upsert({
+    id: getSyncMissionId(mission),
+    payload: mission,
+    updated_at: updatedAt,
+    updated_by: getSyncClientId()
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return {
+    missionId: getSyncMissionId(mission),
+    updatedAt
+  };
+}
+
 export async function uploadEvidenceImage(path: string, file: File) {
   if (!supabase) {
     throw new Error('Supabase storage is not configured.');

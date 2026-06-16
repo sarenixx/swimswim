@@ -7,6 +7,7 @@ import {
   buildWowsaReport,
   mailtoHref
 } from '../../lib/reports';
+import { backupMissionSnapshot, isRemoteSyncAvailable } from '../../lib/sync/supabaseClient';
 import { formatClock, getCrewLabel } from '../../state/selectors';
 import type { TimelineEventType } from '../../state/types';
 import { useMissionStore } from '../../state/useMissionStore';
@@ -71,6 +72,13 @@ export function LogsData() {
   const removeWildlifeSighting = useMissionStore((state) => state.removeWildlifeSighting);
   const [filter, setFilter] = useState<TimelineEventType | 'all'>('all');
   const [copied, setCopied] = useState(false);
+  const [backupStatus, setBackupStatus] = useState<{
+    state: 'idle' | 'saving' | 'success' | 'error';
+    detail: string;
+  }>(() => ({
+    state: isRemoteSyncAvailable() ? 'idle' : 'error',
+    detail: isRemoteSyncAvailable() ? 'Supabase backup is ready.' : 'Supabase backup is not configured.'
+  }));
   const [wildlifeDraft, setWildlifeDraft] = useState({
     species: '',
     behavior: '',
@@ -98,21 +106,16 @@ export function LogsData() {
     severity: event.severity,
     lateByMinutes: event.lateByMinutes
   }));
+  const operationalRecord = {
+    generatedAt: new Date().toISOString(),
+    recordType: mission.mode === 'template' ? 'template-operating-record' : 'operational-swim-source-of-truth',
+    source: 'Swim California Mission Control',
+    activeActor: getCrewLabel(mission, activeActorId),
+    offlineQueue,
+    mission
+  };
   const jsonReport = JSON.stringify(
-    {
-      mission: {
-        id: mission.id,
-        name: mission.name,
-        status: mission.status,
-        startedAt: mission.startedAt,
-        lastFeedingAt: mission.lastFeedingAt,
-        nextFeedingAt: mission.nextFeedingAt
-      },
-      timeline: exportRows,
-      alerts: mission.alerts,
-      swimmerConditions: mission.swimmerConditions,
-      checklistItems: mission.checklistItems
-    },
+    operationalRecord,
     null,
     2
   );
@@ -126,14 +129,30 @@ export function LogsData() {
     }
   };
 
+  const backupNow = async () => {
+    setBackupStatus({ state: 'saving', detail: 'Saving mission snapshot to Supabase.' });
+    try {
+      const result = await backupMissionSnapshot(mission);
+      setBackupStatus({
+        state: 'success',
+        detail: `Supabase backup saved at ${new Date(result.updatedAt).toLocaleTimeString()}.`
+      });
+    } catch (error) {
+      setBackupStatus({
+        state: 'error',
+        detail: error instanceof Error ? error.message : 'Supabase backup failed.'
+      });
+    }
+  };
+
   const jsonHref = `data:application/json;charset=utf-8,${encodeURIComponent(jsonReport)}`;
   const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csvReport)}`;
   const reportDate = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   const reportLocation = mission.session.location || mission.name;
   const reportEmail = mission.session.operationsEmail || 'operations@example.com';
   const reportPrefix = mission.mode === 'template' ? 'Endurance Swim Template' : 'Swim California';
-  const jsonDownloadName = mission.mode === 'template' ? 'endurance-swim-template-report.json' : 'swim-california-report.json';
-  const csvDownloadName = mission.mode === 'template' ? 'endurance-swim-template-timeline.csv' : 'swim-california-timeline.csv';
+  const jsonDownloadName = mission.mode === 'template' ? 'endurance-swim-template-operating-record.json' : 'california-coast-swim-operating-record.json';
+  const csvDownloadName = mission.mode === 'template' ? 'endurance-swim-template-event-log.csv' : 'california-coast-swim-event-log.csv';
 
   const submitWildlife = () => {
     if (!wildlifeDraft.species.trim()) {
@@ -162,8 +181,8 @@ export function LogsData() {
       <section className="panel span-4">
         <div className="panel-header">
           <div>
-            <h3 className="panel-title">Data Summary</h3>
-            <p className="panel-subtitle">{mission.name}</p>
+            <h3 className="panel-title">Operating Record</h3>
+            <p className="panel-subtitle">Operational swim source of truth</p>
           </div>
           <Database aria-hidden="true" />
         </div>
@@ -186,8 +205,8 @@ export function LogsData() {
       <section className="panel span-8">
         <div className="panel-header">
           <div>
-            <h3 className="panel-title">Exports</h3>
-            <p className="panel-subtitle">Report scope: {filter}</p>
+            <h3 className="panel-title">Source-of-Truth Exports</h3>
+            <p className="panel-subtitle">Complete JSON record - CSV scope: {filter}</p>
           </div>
           <FileDown aria-hidden="true" />
         </div>
@@ -204,11 +223,15 @@ export function LogsData() {
             <Copy aria-hidden="true" />
             {copied ? 'Copied' : 'Copy JSON'}
           </button>
+          <button className="button" type="button" onClick={backupNow} disabled={!isRemoteSyncAvailable() || backupStatus.state === 'saving'}>
+            <Database aria-hidden="true" />
+            {backupStatus.state === 'saving' ? 'Backing up' : 'Backup to Supabase'}
+          </button>
           <a
             className="button"
             href={mailtoHref(
               reportEmail,
-              `${reportPrefix} - Logistics Report - ${reportLocation} - ${reportDate}`,
+              `${reportPrefix} - Operating Record - ${reportLocation} - ${reportDate}`,
               buildLogisticsReport(mission)
             )}
           >
@@ -227,13 +250,14 @@ export function LogsData() {
             Medical Email
           </a>
         </div>
+        <p className={`row-meta backup-status ${backupStatus.state}`}>{backupStatus.detail}</p>
       </section>
 
       <section className="panel span-6">
         <div className="panel-header">
           <div>
-            <h3 className="panel-title">Daily Session</h3>
-            <p className="panel-subtitle">Report metadata from the original daily ops flow.</p>
+            <h3 className="panel-title">Swim Details</h3>
+            <p className="panel-subtitle">Operational metadata for the source-of-truth record.</p>
           </div>
           <Database aria-hidden="true" />
         </div>
@@ -418,8 +442,8 @@ export function LogsData() {
       <section className="panel span-12">
         <div className="panel-header">
           <div>
-            <h3 className="panel-title">Timeline Data</h3>
-            <p className="panel-subtitle">{filteredTimeline.length} matching records</p>
+            <h3 className="panel-title">Event Log</h3>
+            <p className="panel-subtitle">{filteredTimeline.length} source records</p>
           </div>
           <Filter aria-hidden="true" />
         </div>

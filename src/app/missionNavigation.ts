@@ -1,5 +1,6 @@
 import {
   Activity,
+  Ambulance,
   ClipboardCheck,
   CloudSun,
   ContactRound,
@@ -35,9 +36,16 @@ const navBlueprint: MissionNavBlueprint[] = [
   { segment: 'feeding', label: 'Feeding Plan', shortLabel: 'Feed', title: 'Feeding / Nutrition Plan', icon: Utensils },
   { segment: 'conditions-risk', label: 'Conditions + Risk', shortLabel: 'Risk', title: 'Conditions + Risk', icon: CloudSun },
   { segment: 'checklists', label: 'Packing + Readiness', shortLabel: 'Pack', title: 'Packing + Readiness', icon: ClipboardCheck },
+  {
+    segment: 'safety#medical-record',
+    label: 'Medical Record',
+    shortLabel: 'Medical',
+    title: 'Medical Record',
+    icon: Ambulance
+  },
   { segment: 'safety', label: 'Safety & Emergency', shortLabel: 'Safety', title: 'Safety & Emergency', icon: ShieldAlert },
   { segment: 'setup', label: 'Mission Setup', shortLabel: 'Setup', title: 'Mission Setup', icon: Settings2 },
-  { segment: 'logs', label: 'Reports & Data', shortLabel: 'Reports', title: 'Reports & Data', icon: FileClock }
+  { segment: 'logs', label: 'Operating Record', shortLabel: 'Record', title: 'Operating Record', icon: FileClock }
 ];
 
 export function getMissionBasePath(mode: MissionMode): string {
@@ -65,11 +73,13 @@ export function buildMissionNavItems(mode: MissionMode): MissionNavItem[] {
 }
 
 export function getPrimaryMobileNavItems(navItems: MissionNavItem[]): MissionNavItem[] {
-  return [navItems[0], navItems[1], navItems[3], navItems[5]];
+  const medicalRecord = navItems.find((item) => item.label === 'Medical Record') ?? navItems[6];
+  const operatingRecord = navItems.find((item) => item.label === 'Operating Record') ?? navItems[navItems.length - 1];
+  return [navItems[0], navItems[1], medicalRecord, operatingRecord];
 }
 
 export function getDeliverableTitle(mode: MissionMode): string {
-  return mode === 'template' ? 'Reusable Template Project' : 'Live Operational Project';
+  return mode === 'template' ? 'Reusable Template Project' : 'Operational Swim Source of Truth';
 }
 
 export function getDeliverableBrand(mode: MissionMode): string {

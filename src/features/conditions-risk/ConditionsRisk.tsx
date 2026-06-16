@@ -1,8 +1,10 @@
-import { AlertTriangle, Ambulance, Ban, PhoneCall, ShieldAlert, Thermometer, Waves, Wind } from 'lucide-react';
+import { AlertTriangle, Ban, PhoneCall, Waves, Wind } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { getMissionPath } from '../../app/missionNavigation';
-import { formatClock, getActiveAlerts } from '../../state/selectors';
+import { formatClock, getActiveAlerts, getCrewLabel } from '../../state/selectors';
 import { useMissionStore } from '../../state/useMissionStore';
+
+const includesAny = (value: string, terms: string[]) => terms.some((term) => value.toLowerCase().includes(term.toLowerCase()));
 
 export function ConditionsRisk() {
   const mission = useMissionStore((state) => state.mission);
@@ -14,13 +16,27 @@ export function ConditionsRisk() {
     medicalConcerns: [],
     mitigationNotes: []
   };
+  const stopConditions = riskPlan.abortConditions
+    .filter((condition) =>
+      includesAny(condition, ['distress', 'medical veto', 'wind exceeds', 'visibility', 'shark', 'vessel emergency'])
+    )
+    .slice(0, 6);
+  const medicalStopSigns = riskPlan.medicalConcerns
+    .filter((concern) => includesAny(concern, ['rhabdomyolysis', 'hypothermia', 'pulmonary edema', 'oliguria']))
+    .slice(0, 4);
+  const commandControls = riskPlan.mitigationNotes
+    .filter((note) => includesAny(note, ['final authority', 'go/no-go veto', 'communication loop']))
+    .slice(0, 3);
+  const latestRiskChange = [...mission.timeline]
+    .filter((event) => event.summary === 'Safety/risk plan updated' || ['weather', 'condition', 'emergency'].includes(event.type))
+    .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())[0];
 
   return (
     <div className="page-grid">
       <section className="panel span-12">
         <div className="panel-header">
           <div>
-            <h3 className="panel-title">Conditions</h3>
+            <h3 className="panel-title">Conditions Snapshot</h3>
             <p className="panel-subtitle">Observed {formatClock(mission.conditions.observedAt)} · {mission.conditions.summary}</p>
           </div>
           <Waves aria-hidden="true" />
@@ -51,69 +67,53 @@ export function ConditionsRisk() {
             <span className="metric-value">{mission.conditions.visibilityNm} nm</span>
           </div>
         </div>
-      </section>
-
-      <section className="panel span-5">
-        <div className="panel-header">
-          <div>
-            <h3 className="panel-title">Weather + Tide</h3>
-            <p className="panel-subtitle">{riskPlan.weatherSource}</p>
-          </div>
-          <Wind aria-hidden="true" />
-        </div>
-        <div className="risk-callout">
-          <Thermometer aria-hidden="true" />
-          <span>{riskPlan.tideWindow}</span>
+        <div className="risk-source-strip">
+          <span>Source: SwimCalifornia_Playbook.docx</span>
+          <span>{riskPlan.weatherSource}</span>
+          {latestRiskChange ? (
+            <span>
+              Last change: {formatClock(latestRiskChange.at)} · {getCrewLabel(mission, latestRiskChange.actorId)}
+            </span>
+          ) : null}
+          <span className={activeAlerts.length ? 'severity-pill warning' : 'severity-pill info'}>
+            {activeAlerts.length ? `${activeAlerts.length} active alert${activeAlerts.length > 1 ? 's' : ''}` : 'clear'}
+          </span>
         </div>
       </section>
 
       <section className="panel span-7">
         <div className="panel-header">
           <div>
-            <h3 className="panel-title">Abort Conditions</h3>
-            <p className="panel-subtitle">Captain owns the final call.</p>
+            <h3 className="panel-title">Stop Swim If</h3>
+            <p className="panel-subtitle">Operational stop triggers.</p>
           </div>
           <Ban aria-hidden="true" />
         </div>
-        <ul className="row-list">
-          {riskPlan.abortConditions.map((condition) => (
+        <ul className="row-list compact-risk-list">
+          {stopConditions.map((condition) => (
             <li className="list-row" key={condition}>
               <div className="split-row">
                 <span className="row-title">{condition}</span>
-                <span className="severity-pill warning">watch</span>
+                <span className="severity-pill critical">stop</span>
               </div>
             </li>
           ))}
         </ul>
       </section>
 
-      <section className="panel span-6">
+      <section className="panel span-5">
         <div className="panel-header">
           <div>
-            <h3 className="panel-title">Medical Concerns</h3>
-            <p className="panel-subtitle">Escalate when trend changes.</p>
+            <h3 className="panel-title">Review Before Launch</h3>
+            <p className="panel-subtitle">Weather window, authority, and communication loop.</p>
           </div>
-          <Ambulance aria-hidden="true" />
+          <Wind aria-hidden="true" />
         </div>
-        <ul className="row-list">
-          {riskPlan.medicalConcerns.map((concern) => (
-            <li className="list-row" key={concern}>
-              <span className="row-title">{concern}</span>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section className="panel span-6">
-        <div className="panel-header">
-          <div>
-            <h3 className="panel-title">Risk Controls</h3>
-            <p className="panel-subtitle">Current mitigation owners.</p>
-          </div>
-          <ShieldAlert aria-hidden="true" />
+        <div className="risk-callout">
+          <span>{riskPlan.tideWindow}</span>
         </div>
-        <ul className="row-list">
-          {riskPlan.mitigationNotes.map((note) => (
+        <ul className="row-list compact-risk-list">
+          {commandControls.map((note) => (
             <li className="list-row" key={note}>
               <span className="row-title">{note}</span>
             </li>
@@ -124,37 +124,31 @@ export function ConditionsRisk() {
       <section className="panel span-7">
         <div className="panel-header">
           <div>
-            <h3 className="panel-title">Active Risk Alerts</h3>
-            <p className="panel-subtitle">{activeAlerts.length ? `${activeAlerts.length} open` : 'Clear'}</p>
+            <h3 className="panel-title">Medical Stop Signs</h3>
+            <p className="panel-subtitle">Rhabdo, cold stress, SIPE, and urine output.</p>
           </div>
           <AlertTriangle aria-hidden="true" />
         </div>
-        {activeAlerts.length ? (
-          <ul className="alert-list">
-            {activeAlerts.map((alert) => (
-              <li className={`alert-row ${alert.severity}`} key={alert.id}>
-                <div className="split-row">
-                  <div>
-                    <div className="row-title">{alert.title}</div>
-                    <div className="alert-detail">
-                      {alert.detail} · {formatClock(alert.createdAt)}
-                    </div>
-                  </div>
-                  <span className={`severity-pill ${alert.severity}`}>{alert.severity}</span>
-                </div>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <div className="empty-state">No active risk alerts.</div>
-        )}
+        <ul className="row-list compact-risk-list">
+          {medicalStopSigns.map((concern) => (
+            <li className="list-row" key={concern}>
+              <div className="split-row">
+                <span className="row-title">{concern}</span>
+                <span className="severity-pill warning">watch</span>
+              </div>
+            </li>
+          ))}
+        </ul>
+        <Link className="button" to={getMissionPath(mission.mode, 'safety#medical-record')}>
+          Open Medical Record
+        </Link>
       </section>
 
       <section className="panel span-5">
         <div className="panel-header">
           <div>
             <h3 className="panel-title">Protocol Scenarios</h3>
-            <p className="panel-subtitle">Medical, distress, and abort response guidance.</p>
+            <p className="panel-subtitle">Medical, distress, and abort response.</p>
           </div>
           <PhoneCall aria-hidden="true" />
         </div>

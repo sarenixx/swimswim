@@ -200,6 +200,15 @@ function recordCountLabel(count: number) {
   return `${count} ${count === 1 ? "record" : "records"}`;
 }
 
+function getManualEntrySummary(note: string) {
+  const trimmed = note.trim().replace(/\s+/g, " ");
+  if (!trimmed) {
+    return "Manual timeline entry";
+  }
+
+  return trimmed.length > 64 ? `${trimmed.slice(0, 61)}...` : trimmed;
+}
+
 function getWakeLockNavigator() {
   return navigator as unknown as WakeLockCapableNavigator;
 }
@@ -228,6 +237,9 @@ export function PartnersMedia() {
   const [waterStatus, setWaterStatus] = useState("");
   const [storageStatus, setStorageStatus] = useState("");
   const [backupStatus, setBackupStatus] = useState("");
+  const [manualEventText, setManualEventText] = useState("");
+  const [manualEventStatus, setManualEventStatus] = useState("");
+  const [isSavingManualEvent, setIsSavingManualEvent] = useState(false);
   const [wakeLockStatus, setWakeLockStatus] = useState("Session timer ready.");
   const [pushReminderStatus, setPushReminderStatus] = useState(
     "Sleep reminders ready.",
@@ -690,7 +702,10 @@ export function PartnersMedia() {
     detail: string,
   ) => {
     const position = await capturePosition();
-    const weather = await captureWeather(position.lat, position.lon);
+    const [weather, water] = await Promise.all([
+      captureWeather(position.lat, position.lon),
+      captureWaterTemperature(position.lat, position.lon),
+    ]);
     logEvent({
       type,
       actorId: activeActorId,
@@ -702,11 +717,56 @@ export function PartnersMedia() {
       gpsAccuracyM: position.accuracyM,
       weatherSummary: weather.summary,
       airTempF: weather.airTempF,
-      waterTempF: mission.conditions.waterTempF,
+      waterTempF: water.waterTempF ?? mission.conditions.waterTempF,
       windKts: weather.windKts,
       windDirection: weather.windDirection,
       severity: type === "weather" ? "warning" : "info",
     });
+  };
+
+  const saveManualEvent = async () => {
+    const note = manualEventText.trim();
+    if (!note) {
+      setManualEventStatus("Write a note first.");
+      return;
+    }
+
+    setIsSavingManualEvent(true);
+    setManualEventStatus("Saving manual entry...");
+
+    try {
+      const position = await capturePosition();
+      const [weather, water] = await Promise.all([
+        captureWeather(position.lat, position.lon),
+        captureWaterTemperature(position.lat, position.lon),
+      ]);
+      logEvent({
+        type: "note",
+        actorId: activeActorId,
+        summary: getManualEntrySummary(note),
+        detail: note,
+        gps: position.label,
+        lat: position.lat,
+        lon: position.lon,
+        gpsAccuracyM: position.accuracyM,
+        weatherSummary: weather.summary,
+        airTempF: weather.airTempF,
+        waterTempF: water.waterTempF ?? mission.conditions.waterTempF,
+        windKts: weather.windKts,
+        windDirection: weather.windDirection,
+        severity: "info",
+      });
+      setManualEventText("");
+      setManualEventStatus("Manual entry saved.");
+    } catch (error) {
+      setManualEventStatus(
+        error instanceof Error
+          ? error.message
+          : "Manual entry could not be saved.",
+      );
+    } finally {
+      setIsSavingManualEvent(false);
+    }
   };
 
   const handleRemovePhoto = async (
@@ -1124,6 +1184,31 @@ export function PartnersMedia() {
               </p>
             </div>
             <Waves aria-hidden="true" />
+          </div>
+          <div className="manual-event-box">
+            <label className="field-label">
+              Manual note
+              <textarea
+                className="textarea"
+                value={manualEventText}
+                onChange={(event) => setManualEventText(event.target.value)}
+                placeholder="Type anything notable: swimmer status, crew action, course change, wildlife, equipment, feed, conditions"
+              />
+            </label>
+            <div className="row-actions">
+              <button
+                className="button primary"
+                type="button"
+                onClick={saveManualEvent}
+                disabled={isSavingManualEvent}
+              >
+                <Plus aria-hidden="true" />
+                {isSavingManualEvent ? "Saving" : "Save Manual Entry"}
+              </button>
+            </div>
+            {manualEventStatus ? (
+              <p className="row-meta observation-status">{manualEventStatus}</p>
+            ) : null}
           </div>
           <div className="quick-event-grid">
             {quickEvents.map((event) => (

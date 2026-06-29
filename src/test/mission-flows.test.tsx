@@ -233,6 +233,31 @@ describe("observer-first swim flows", () => {
     expect(useMissionStore.getState().mission.timeline).toHaveLength(0);
   });
 
+  it("adds a free-text manual timeline entry from the blank note box", async () => {
+    const user = userEvent.setup();
+    renderRoute("/");
+
+    await user.type(
+      await screen.findByLabelText(/Manual note/i),
+      "Crew moved the boat to the swimmer's left shoulder.",
+    );
+    await user.click(
+      screen.getByRole("button", { name: /Save Manual Entry/i }),
+    );
+
+    await waitFor(() =>
+      expect(useMissionStore.getState().mission.timeline[0].summary).toBe(
+        "Crew moved the boat to the swimmer's left shoulder.",
+      ),
+    );
+    expect(useMissionStore.getState().mission.timeline[0]).toMatchObject({
+      detail: "Crew moved the boat to the swimmer's left shoulder.",
+      gps: "33.71000° N, 118.28000° W",
+      weatherSummary: "Partly cloudy - 64F air - 9 kt W",
+    });
+    expect(screen.getByLabelText(/Manual note/i)).toHaveValue("");
+  });
+
   it("exports a single official observation JSON record", async () => {
     renderRoute("/");
 

@@ -1707,6 +1707,12 @@ input[type="range"] {
   margin: 0;
 }
 
+.manual-event-box {
+  display: grid;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
 .quick-event-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

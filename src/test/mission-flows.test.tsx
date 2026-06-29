@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { routes } from "../app/router";
+import { getEvidenceImage } from "../lib/storage/evidenceStore";
 import {
   useMissionStore,
   useTemplateMissionStore,
@@ -145,6 +146,7 @@ describe("observer-first swim flows", () => {
       photoInputs[0],
       new File(["photo"], "swimmer.jpg", { type: "image/jpeg" }),
     );
+    expect(await screen.findByText(/Photo saved locally/i)).toBeInTheDocument();
     await waitFor(() =>
       expect(
         screen.getByRole("button", { name: /Save Observation/i }),
@@ -169,6 +171,12 @@ describe("observer-first swim flows", () => {
       notes: "Increased chop but swimmer steady.",
       waterTempF: 61,
       windKts: 9,
+    });
+    expect(photo.imageStorageKey).toBeDefined();
+    await expect(getEvidenceImage(photo.imageStorageKey!)).resolves.toMatchObject({
+      name: "swimmer.jpg",
+      size: 5,
+      type: "image/jpeg",
     });
     expect(useMissionStore.getState().mission.timeline[0].summary).toBe(
       "Observation #1 logged",
@@ -211,12 +219,12 @@ describe("observer-first swim flows", () => {
     renderRoute("/");
 
     await user.click(
-      await screen.findByRole("button", { name: /Saw dolphin/i }),
+      await screen.findByRole("button", { name: /Saw wildlife/i }),
     );
 
     const event = useMissionStore.getState().mission.timeline[0];
     expect(event).toMatchObject({
-      summary: "Saw dolphin",
+      summary: "Saw wildlife",
       gps: "33.71000° N, 118.28000° W",
       weatherSummary: "Partly cloudy - 64F air - 9 kt W",
     });
@@ -233,7 +241,7 @@ describe("observer-first swim flows", () => {
 
     await user.click(
       screen.getByRole("button", {
-        name: /Delete timeline entry Saw dolphin/i,
+        name: /Delete timeline entry Saw wildlife/i,
       }),
     );
 
@@ -315,6 +323,43 @@ describe("observer-first swim flows", () => {
       status: "active",
       observationCount: 1,
     });
+  });
+
+  it("downloads saved photo evidence when ending the observation session", async () => {
+    const user = userEvent.setup();
+    const downloadClick = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => undefined);
+    renderRoute("/");
+
+    await user.click(
+      await screen.findByRole("button", { name: /Start Session/i }),
+    );
+    const photoInputs = await screen.findAllByLabelText(
+      /Capture swimmer photo/i,
+    );
+    await user.upload(
+      photoInputs[0],
+      new File(["photo"], "swimmer.jpg", { type: "image/jpeg" }),
+    );
+    await user.click(screen.getByRole("button", { name: /Save Observation/i }));
+    await waitFor(() =>
+      expect(
+        useMissionStore.getState().mission.wowsaPhotos[0].evidenceStatus,
+      ).toBe("ready"),
+    );
+
+    await user.click(screen.getByRole("button", { name: /End & Backup/i }));
+
+    expect(
+      await screen.findByText(/Photo ZIP ready \(1\/1 photos\)/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Download Photo ZIP/i }),
+    ).toBeInTheDocument();
+    expect(useMissionStore.getState().mission.status).toBe("completed");
+    expect(downloadClick).toHaveBeenCalled();
+    downloadClick.mockRestore();
   });
 
   it("keeps medical workflows independent with four checklists and one recovery-day checklist", async () => {

@@ -4,6 +4,7 @@ import {
   CloudSun,
   Database,
   FileDown,
+  FileArchive,
   Image as ImageIcon,
   Mail,
   MapPin,
@@ -23,6 +24,11 @@ import {
   enableObservationPushReminders,
   updateObservationPushReminder,
 } from "../../lib/pushReminders";
+import {
+  prepareWowsaEvidenceBundleDownload,
+  type EvidenceBundleResult,
+  type PreparedEvidenceBundleDownload,
+} from "../../lib/evidenceBundle";
 import { buildWowsaReport, mailtoHref } from "../../lib/reports";
 import {
   deleteEvidenceImage,
@@ -85,6 +91,8 @@ interface PhotoDraft {
   eventTag: string;
   imageName: string;
   imageFile?: File;
+  imageCapturedAt?: string;
+  imageStorageKey?: string;
   imagePreviewUrl: string;
 }
 
@@ -101,9 +109,9 @@ const quickEvents: Array<{
     detail: "Feed completed between scheduled observations.",
   },
   {
-    label: "Saw dolphin",
+    label: "Saw wildlife",
     type: "note",
-    detail: "Dolphin sighting logged near swimmer.",
+    detail: "Wildlife sighting logged near swimmer.",
   },
   {
     label: "Increased chop",
@@ -134,6 +142,8 @@ const emptyPhotoDraft = (missionWaterTemp?: number): PhotoDraft => ({
   eventTag: "",
   imageName: "",
   imageFile: undefined,
+  imageCapturedAt: undefined,
+  imageStorageKey: undefined,
   imagePreviewUrl: "",
 });
 
@@ -214,6 +224,14 @@ function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
 
+function formatPhotoBundleResult(result: EvidenceBundleResult) {
+  const missingDetail = result.missingPhotoNumbers.length
+    ? ` Missing records: ${result.missingPhotoNumbers.join(", ")}.`
+    : "";
+
+  return `Photo ZIP ready (${result.exportedPhotos}/${result.totalPhotos} photos).${missingDetail}`;
+}
+
 function getWakeLockNavigator() {
   return navigator as unknown as WakeLockCapableNavigator;
 }
@@ -243,6 +261,9 @@ export function PartnersMedia() {
   const [storageStatus, setStorageStatus] = useState("");
   const [backupStatus, setBackupStatus] = useState("");
   const [isBackingUpNow, setIsBackingUpNow] = useState(false);
+  const [isExportingPhotoBundle, setIsExportingPhotoBundle] = useState(false);
+  const [photoBundleDownload, setPhotoBundleDownload] =
+    useState<PreparedEvidenceBundleDownload>();
   const [manualEventText, setManualEventText] = useState("");
   const [manualEventStatus, setManualEventStatus] = useState("");
   const [isSavingManualEvent, setIsSavingManualEvent] = useState(false);
@@ -431,6 +452,12 @@ export function PartnersMedia() {
     };
   }, [photoDraft.imagePreviewUrl]);
 
+  useEffect(() => {
+    return () => {
+      photoBundleDownload?.revoke();
+    };
+  }, [photoBundleDownload]);
+
   const resetDraft = () => {
     if (photoDraft.imagePreviewUrl) {
       URL.revokeObjectURL(photoDraft.imagePreviewUrl);
@@ -576,22 +603,43 @@ export function PartnersMedia() {
     await reminderPromise;
   };
 
-  const handlePhotoFile = (file?: File) => {
+  const handlePhotoFile = async (file?: File) => {
     if (!file) {
       return;
     }
 
+    const capturedAt = new Date().toISOString();
+    const imageStorageKey = makeEvidenceImageKey(
+      getSyncMissionId(mission),
+      capturedAt,
+      file.name,
+    );
+    const previewUrl = URL.createObjectURL(file);
+
     if (photoDraft.imagePreviewUrl) {
       URL.revokeObjectURL(photoDraft.imagePreviewUrl);
+    }
+    if (photoDraft.imageStorageKey) {
+      deleteEvidenceImage(photoDraft.imageStorageKey).catch(() => undefined);
     }
 
     setPhotoDraft((draft) => ({
       ...draft,
       imageFile: file,
+      imageCapturedAt: capturedAt,
       imageName: file.name,
-      imagePreviewUrl: URL.createObjectURL(file),
+      imageStorageKey,
+      imagePreviewUrl: previewUrl,
     }));
-    setStorageStatus("Photo ready.");
+    setStorageStatus("Saving photo locally...");
+    try {
+      await saveEvidenceImage(imageStorageKey, file);
+      setStorageStatus("Photo saved locally. GPS/weather updating.");
+    } catch (error) {
+      setStorageStatus(
+        `Photo could not be saved locally: ${getErrorMessage(error, "browser storage failed")}.`,
+      );
+    }
     updateDraftFromContext().catch(() => undefined);
   };
 
@@ -600,7 +648,7 @@ export function PartnersMedia() {
     setStorageStatus("Saving observation...");
 
     try {
-      const at = new Date().toISOString();
+      const at = photoDraft.imageCapturedAt ?? new Date().toISOString();
       let lat = photoDraft.lat;
       let lon = photoDraft.lon;
       let gps = photoDraft.gps;
@@ -633,16 +681,23 @@ export function PartnersMedia() {
       }
 
       let imageStorageKey: string | undefined;
+      let remoteUploadStatus: "uploaded" | "failed" | "skipped" = "skipped";
+      let remoteUploadError = "";
       if (photoDraft.imageFile) {
-        imageStorageKey = makeEvidenceImageKey(
-          getSyncMissionId(mission),
-          at,
-          photoDraft.imageFile.name,
-        );
-        if (isRemoteSyncAvailable()) {
-          await uploadEvidenceImage(imageStorageKey, photoDraft.imageFile);
-        } else {
+        imageStorageKey =
+          photoDraft.imageStorageKey ??
+          makeEvidenceImageKey(getSyncMissionId(mission), at, photoDraft.imageFile.name);
+        if (!photoDraft.imageStorageKey) {
           await saveEvidenceImage(imageStorageKey, photoDraft.imageFile);
+        }
+        if (isRemoteSyncAvailable()) {
+          try {
+            await uploadEvidenceImage(imageStorageKey, photoDraft.imageFile);
+            remoteUploadStatus = "uploaded";
+          } catch (error) {
+            remoteUploadStatus = "failed";
+            remoteUploadError = getErrorMessage(error, "remote upload failed");
+          }
         }
       }
 
@@ -685,9 +740,11 @@ export function PartnersMedia() {
         );
       setStorageStatus(
         photoDraft.imageFile
-          ? isRemoteSyncAvailable()
-            ? "Observation saved to Supabase storage."
-            : "Observation saved on this device."
+          ? remoteUploadStatus === "uploaded"
+            ? "Observation saved locally and uploaded to Supabase."
+            : remoteUploadStatus === "failed"
+              ? `Observation saved locally. Supabase upload failed: ${remoteUploadError}.`
+              : "Observation saved locally on this device."
           : "Observation saved. Photo evidence still needed.",
       );
       resetDraft();
@@ -870,6 +927,48 @@ export function PartnersMedia() {
     }
   };
 
+  const clickPreparedPhotoBundle = (prepared: PreparedEvidenceBundleDownload) => {
+    const link = document.createElement("a");
+
+    link.href = prepared.href;
+    link.download = prepared.fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  };
+
+  const preparePhotoBundle = async (missionToExport: Mission) => {
+    const prepared = await prepareWowsaEvidenceBundleDownload(missionToExport);
+
+    setPhotoBundleDownload((current) => {
+      current?.revoke();
+      return prepared;
+    });
+    clickPreparedPhotoBundle(prepared);
+
+    return prepared.result;
+  };
+
+  const exportPhotoBundle = async () => {
+    setIsExportingPhotoBundle(true);
+    setBackupStatus("Preparing photo ZIP...");
+
+    try {
+      const result = await preparePhotoBundle(
+        useMissionStore.getState().mission,
+      );
+      setBackupStatus(
+        `${formatPhotoBundleResult(result)} Tap Download Photo ZIP if it does not open automatically.`,
+      );
+    } catch (error) {
+      setBackupStatus(
+        `Photo ZIP not created: ${getErrorMessage(error, "photo export failed")}.`,
+      );
+    } finally {
+      setIsExportingPhotoBundle(false);
+    }
+  };
+
   const backupAndClose = async () => {
     completeObservationSession(activeActorId);
     const closedMission = useMissionStore.getState().mission;
@@ -902,6 +1001,17 @@ export function PartnersMedia() {
       localDetail = `Final local backup failed: ${getErrorMessage(error, "backup storage unavailable")}.`;
     }
 
+    let photoDetail = "";
+    setIsExportingPhotoBundle(true);
+    try {
+      const result = await preparePhotoBundle(closedMission);
+      photoDetail = ` ${formatPhotoBundleResult(result)} Tap Download Photo ZIP if it does not open automatically.`;
+    } catch (error) {
+      photoDetail = ` Photo ZIP not created: ${getErrorMessage(error, "photo export failed")}.`;
+    } finally {
+      setIsExportingPhotoBundle(false);
+    }
+
     try {
       if (isRemoteSyncAvailable()) {
         const [remoteBackup] = await Promise.all([
@@ -909,14 +1019,14 @@ export function PartnersMedia() {
           backupMissionSnapshot(closedMission),
         ]);
         setBackupStatus(
-          `${localDetail} Supabase final checkpoint saved at ${new Date(remoteBackup.updatedAt).toLocaleTimeString()}.`,
+          `${localDetail}${photoDetail} Supabase final checkpoint saved at ${new Date(remoteBackup.updatedAt).toLocaleTimeString()}.`,
         );
       } else {
-        setBackupStatus(`${localDetail} Email backup prepared.`);
+        setBackupStatus(`${localDetail}${photoDetail} Email backup prepared.`);
       }
     } catch (error) {
       setBackupStatus(
-        `${localDetail} Supabase final checkpoint failed: ${getErrorMessage(error, "remote backup failed")}.`,
+        `${localDetail}${photoDetail} Supabase final checkpoint failed: ${getErrorMessage(error, "remote backup failed")}.`,
       );
     }
 
@@ -1210,7 +1320,7 @@ export function PartnersMedia() {
                       notes: event.target.value,
                     }))
                   }
-                  placeholder="Dolphin sighting, chop, equipment adjustment, swimmer response"
+                  placeholder="Wildlife sighting, chop, equipment adjustment, swimmer response"
                 />
               </label>
 
@@ -1331,6 +1441,15 @@ export function PartnersMedia() {
               <FileDown aria-hidden="true" />
               Official JSON
             </a>
+            <button
+              className="button"
+              type="button"
+              onClick={exportPhotoBundle}
+              disabled={isExportingPhotoBundle}
+            >
+              <FileArchive aria-hidden="true" />
+              {isExportingPhotoBundle ? "Zipping Photos" : "Photo ZIP"}
+            </button>
             <a
               className="button"
               href={mailtoHref(
@@ -1342,13 +1461,30 @@ export function PartnersMedia() {
               <Mail aria-hidden="true" />
               Gmail Backup
             </a>
-            <button className="button" type="button" onClick={backupAndClose}>
+            <button
+              className="button"
+              type="button"
+              onClick={backupAndClose}
+              disabled={isExportingPhotoBundle}
+            >
               <CheckCircle2 aria-hidden="true" />
               End & Backup
             </button>
           </div>
           {backupStatus ? (
             <p className="row-meta observation-status">{backupStatus}</p>
+          ) : null}
+          {photoBundleDownload ? (
+            <div className="row-actions">
+              <a
+                className="button primary"
+                href={photoBundleDownload.href}
+                download={photoBundleDownload.fileName}
+              >
+                <FileArchive aria-hidden="true" />
+                Download Photo ZIP
+              </a>
+            </div>
           ) : null}
         </section>
 

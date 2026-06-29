@@ -525,11 +525,6 @@ export function PartnersMedia() {
   };
 
   const saveObservation = async () => {
-    if (!photoDraft.imageFile) {
-      setStorageStatus("Take or attach a swimmer photo first.");
-      return;
-    }
-
     setIsSavingEvidence(true);
     setStorageStatus("Saving observation...");
 
@@ -551,7 +546,12 @@ export function PartnersMedia() {
         windDirection: photoDraft.windDirection || undefined,
       };
 
-      if (lat === undefined || lon === undefined || !gps) {
+      if (
+        !photoDraft.imageFile ||
+        lat === undefined ||
+        lon === undefined ||
+        !gps
+      ) {
         const context = await updateDraftFromContext();
         lat = context.position.lat;
         lon = context.position.lon;
@@ -561,15 +561,18 @@ export function PartnersMedia() {
         waterTempF = context.water.waterTempF ?? waterTempF;
       }
 
-      const imageStorageKey = makeEvidenceImageKey(
-        getSyncMissionId(mission),
-        at,
-        photoDraft.imageFile.name,
-      );
-      if (isRemoteSyncAvailable()) {
-        await uploadEvidenceImage(imageStorageKey, photoDraft.imageFile);
-      } else {
-        await saveEvidenceImage(imageStorageKey, photoDraft.imageFile);
+      let imageStorageKey: string | undefined;
+      if (photoDraft.imageFile) {
+        imageStorageKey = makeEvidenceImageKey(
+          getSyncMissionId(mission),
+          at,
+          photoDraft.imageFile.name,
+        );
+        if (isRemoteSyncAvailable()) {
+          await uploadEvidenceImage(imageStorageKey, photoDraft.imageFile);
+        } else {
+          await saveEvidenceImage(imageStorageKey, photoDraft.imageFile);
+        }
       }
 
       addWowsaPhoto({
@@ -587,10 +590,10 @@ export function PartnersMedia() {
         windDirection: weather.windDirection,
         feedCompleted: photoDraft.feedCompleted,
         eventTag: photoDraft.eventTag.trim(),
-        hasPhoto: true,
-        imageName: photoDraft.imageFile.name,
+        hasPhoto: Boolean(photoDraft.imageFile),
+        imageName: photoDraft.imageFile?.name,
         imageStorageKey,
-        imageSizeBytes: photoDraft.imageFile.size,
+        imageSizeBytes: photoDraft.imageFile?.size,
         actorId: activeActorId,
       });
       updateObservationPushReminder({
@@ -610,9 +613,11 @@ export function PartnersMedia() {
           ),
         );
       setStorageStatus(
-        isRemoteSyncAvailable()
-          ? "Observation saved to Supabase storage."
-          : "Observation saved on this device.",
+        photoDraft.imageFile
+          ? isRemoteSyncAvailable()
+            ? "Observation saved to Supabase storage."
+            : "Observation saved on this device."
+          : "Observation saved. Photo evidence still needed.",
       );
       resetDraft();
     } catch (error) {
@@ -1040,7 +1045,7 @@ export function PartnersMedia() {
                   className="button primary"
                   type="button"
                   onClick={saveObservation}
-                  disabled={!photoDraft.imageFile || isSavingEvidence}
+                  disabled={isSavingEvidence}
                 >
                   <Plus aria-hidden="true" />
                   {isSavingEvidence ? "Saving" : "Save Observation"}

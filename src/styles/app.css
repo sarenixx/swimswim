@@ -38,7 +38,11 @@ a {
   place-items: center;
   padding: var(--space-4);
   background:
-    linear-gradient(180deg, rgba(247, 250, 252, 0.92), rgba(227, 243, 251, 0.92)),
+    linear-gradient(
+      180deg,
+      rgba(247, 250, 252, 0.92),
+      rgba(227, 243, 251, 0.92)
+    ),
     var(--color-foam);
 }
 
@@ -615,7 +619,11 @@ a {
   width: 260px;
   height: 260px;
   content: "";
-  background: radial-gradient(circle, rgba(43, 143, 204, 0.32), transparent 68%);
+  background: radial-gradient(
+    circle,
+    rgba(43, 143, 204, 0.32),
+    transparent 68%
+  );
 }
 
 .critical-action.warning {
@@ -1727,17 +1735,48 @@ input[type="range"] {
 
 .observation-timeline {
   display: grid;
-  gap: var(--space-3);
+  gap: var(--space-2);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+.timeline-date-groups {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.timeline-date-group {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.timeline-date-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-1);
+}
+
+.timeline-date-header h4 {
+  margin: 0;
+  color: var(--color-night);
+  font-size: 1rem;
+}
+
+.timeline-date-header span {
+  color: var(--color-muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
 .observation-timeline-row {
   display: grid;
-  grid-template-columns: 92px minmax(0, 1fr) auto;
-  gap: var(--space-3);
-  align-items: start;
+  grid-template-columns: 84px minmax(0, 1fr) auto auto;
+  gap: var(--space-2);
+  align-items: center;
   padding: var(--space-3);
   background: #f9fbfd;
   border: 1px solid var(--color-line);
@@ -1752,6 +1791,7 @@ input[type="range"] {
 .observation-card-main {
   display: grid;
   gap: var(--space-2);
+  min-width: 0;
 }
 
 .observation-thumb {
@@ -1762,9 +1802,43 @@ input[type="range"] {
   border-radius: var(--radius-card);
 }
 
+.observation-thumb.compact {
+  width: 92px;
+  height: 68px;
+  border-radius: var(--radius-control);
+}
+
 .observation-note {
   margin: 0;
   color: var(--color-ink);
+  font-size: 0.88rem;
+}
+
+.timeline-row-titleline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.timeline-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.timeline-chip-row span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 9px;
+  color: var(--color-muted);
+  background: var(--color-white);
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 800;
 }
 
 @media (max-width: 1180px) {

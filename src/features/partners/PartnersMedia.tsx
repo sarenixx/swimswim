@@ -23,11 +23,7 @@ import {
   enableObservationPushReminders,
   updateObservationPushReminder,
 } from "../../lib/pushReminders";
-import {
-  buildWowsaReport,
-  getWowsaEvidenceChecks,
-  mailtoHref,
-} from "../../lib/reports";
+import { buildWowsaReport, mailtoHref } from "../../lib/reports";
 import {
   deleteEvidenceImage,
   getEvidenceImage,
@@ -174,6 +170,36 @@ function addMinutesIso(isoTime: string, minutes: number) {
   ).toISOString();
 }
 
+function getTimelineDateKey(isoTime: string) {
+  const date = new Date(isoTime);
+  if (Number.isNaN(date.getTime())) {
+    return "undated";
+  }
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatTimelineDate(isoTime: string) {
+  const date = new Date(isoTime);
+  if (Number.isNaN(date.getTime())) {
+    return "Undated";
+  }
+
+  return date.toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function recordCountLabel(count: number) {
+  return `${count} ${count === 1 ? "record" : "records"}`;
+}
+
 function getWakeLockNavigator() {
   return navigator as unknown as WakeLockCapableNavigator;
 }
@@ -191,6 +217,9 @@ export function PartnersMedia() {
   const addWowsaPhoto = useMissionStore((state) => state.addWowsaPhoto);
   const removeWowsaPhoto = useMissionStore((state) => state.removeWowsaPhoto);
   const logEvent = useMissionStore((state) => state.logEvent);
+  const removeTimelineEvent = useMissionStore(
+    (state) => state.removeTimelineEvent,
+  );
   const [photoDraft, setPhotoDraft] = useState<PhotoDraft>(() =>
     emptyPhotoDraft(mission.conditions.waterTempF),
   );
@@ -239,6 +268,30 @@ export function PartnersMedia() {
       ].sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime()),
     [manualEvents, sortedPhotos],
   );
+  const timelineGroups = useMemo(() => {
+    const groups: Array<{
+      key: string;
+      label: string;
+      items: typeof timelineItems;
+    }> = [];
+
+    timelineItems.forEach((item) => {
+      const key = getTimelineDateKey(item.at);
+      let group = groups.find((candidate) => candidate.key === key);
+      if (!group) {
+        group = {
+          key,
+          label: formatTimelineDate(item.at),
+          items: [],
+        };
+        groups.push(group);
+      }
+
+      group.items.push(item);
+    });
+
+    return groups;
+  }, [timelineItems]);
   const nextDueAt = getWowsaNextDueAt(mission);
   const secondsUntilNext = Math.floor(
     (new Date(nextDueAt).getTime() - now.getTime()) / 1000,
@@ -1141,56 +1194,92 @@ export function PartnersMedia() {
             <div>
               <h3 className="panel-title">Complete Swim Timeline</h3>
               <p className="panel-subtitle">
-                {timelineItems.length} chronological records
+                {recordCountLabel(timelineItems.length)} grouped by date
               </p>
             </div>
             <Timer aria-hidden="true" />
           </div>
           {timelineItems.length ? (
-            <ol className="observation-timeline">
-              {timelineItems.map((item) => {
-                if (item.kind === "observation") {
-                  const imageUrl =
-                    item.photo.imageDataUrl || storedImageUrls[item.photo.id];
-                  return (
-                    <li
-                      className="observation-timeline-row photo"
-                      key={`photo-${item.photo.id}`}
-                    >
-                      <span className="timeline-time">
-                        {formatClock(item.photo.at)}
-                      </span>
-                      <div className="observation-card-main">
-                        <div className="split-row">
-                          <div>
-                            <div className="timeline-summary">
-                              Observation #{item.photo.number}
-                            </div>
-                            <div className="timeline-detail">
-                              {item.photo.gps || "GPS pending"} -{" "}
-                              {item.photo.weatherSummary || "weather pending"} -
-                              Water{" "}
-                              {item.photo.waterTempF ??
-                                mission.conditions.waterTempF}
-                              F - Wind{" "}
-                              {item.photo.windKts ?? mission.conditions.windKts}{" "}
-                              kt
-                            </div>
-                          </div>
-                          <div className="row-actions">
-                            <span
-                              className={
-                                item.photo.evidenceStatus === "ready"
-                                  ? "status-pill done"
-                                  : "status-pill overdue"
-                              }
-                            >
-                              {item.photo.evidenceStatus}
+            <div className="timeline-date-groups">
+              {timelineGroups.map((group) => (
+                <section className="timeline-date-group" key={group.key}>
+                  <div className="timeline-date-header">
+                    <h4>{group.label}</h4>
+                    <span>{recordCountLabel(group.items.length)}</span>
+                  </div>
+                  <ol className="observation-timeline">
+                    {group.items.map((item) => {
+                      if (item.kind === "observation") {
+                        const imageUrl =
+                          item.photo.imageDataUrl ||
+                          storedImageUrls[item.photo.id];
+                        return (
+                          <li
+                            className="observation-timeline-row photo"
+                            key={`photo-${item.photo.id}`}
+                          >
+                            <span className="timeline-time">
+                              {formatClock(item.photo.at)}
                             </span>
+                            <div className="observation-card-main">
+                              <div className="timeline-row-titleline">
+                                <div>
+                                  <div className="timeline-summary">
+                                    Observation #{item.photo.number}
+                                  </div>
+                                  <div className="timeline-detail">
+                                    {item.photo.gps || "GPS pending"}
+                                  </div>
+                                </div>
+                                <span
+                                  className={
+                                    item.photo.evidenceStatus === "ready"
+                                      ? "status-pill done"
+                                      : "status-pill overdue"
+                                  }
+                                >
+                                  {item.photo.evidenceStatus === "ready"
+                                    ? "photo saved"
+                                    : "photo needed"}
+                                </span>
+                              </div>
+                              <div className="timeline-chip-row">
+                                <span>
+                                  Water{" "}
+                                  {item.photo.waterTempF ??
+                                    mission.conditions.waterTempF}
+                                  F
+                                </span>
+                                <span>
+                                  Wind{" "}
+                                  {item.photo.windKts ??
+                                    mission.conditions.windKts}{" "}
+                                  kt
+                                </span>
+                                {item.photo.weatherSummary ? (
+                                  <span>{item.photo.weatherSummary}</span>
+                                ) : null}
+                                {item.photo.feedCompleted ? (
+                                  <span>Feed done</span>
+                                ) : null}
+                              </div>
+                              {item.photo.notes ? (
+                                <p className="observation-note">
+                                  {item.photo.notes}
+                                </p>
+                              ) : null}
+                            </div>
+                            {imageUrl ? (
+                              <img
+                                className="observation-thumb compact"
+                                src={imageUrl}
+                                alt={`Observation ${item.photo.number}`}
+                              />
+                            ) : null}
                             <button
-                              className="button-icon"
+                              className="button-icon danger"
                               type="button"
-                              aria-label={`Remove observation ${item.photo.number}`}
+                              aria-label={`Delete observation ${item.photo.number}`}
                               onClick={() =>
                                 handleRemovePhoto(
                                   item.photo.id,
@@ -1200,68 +1289,58 @@ export function PartnersMedia() {
                             >
                               <Trash2 aria-hidden="true" />
                             </button>
-                          </div>
-                        </div>
-                        {imageUrl ? (
-                          <img
-                            className="observation-thumb"
-                            src={imageUrl}
-                            alt={`Observation ${item.photo.number}`}
-                          />
-                        ) : null}
-                        {item.photo.notes ? (
-                          <p className="observation-note">{item.photo.notes}</p>
-                        ) : null}
-                        <ul
-                          className="evidence-checks"
-                          aria-label={`Evidence checks for observation ${item.photo.number}`}
-                        >
-                          {getWowsaEvidenceChecks(item.photo).map((check) => (
-                            <li
-                              className={
-                                check.done
-                                  ? "evidence-check done"
-                                  : "evidence-check missing"
-                              }
-                              key={check.id}
-                            >
-                              <CheckCircle2 aria-hidden="true" />
-                              {check.label}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </li>
-                  );
-                }
+                          </li>
+                        );
+                      }
 
-                return (
-                  <li
-                    className="observation-timeline-row event"
-                    key={`event-${item.event.id}`}
-                  >
-                    <span className="timeline-time">
-                      {formatClock(item.event.at)}
-                    </span>
-                    <div>
-                      <div className="timeline-summary">
-                        {item.event.summary}
-                      </div>
-                      <div className="timeline-detail">
-                        {item.event.detail} -{" "}
-                        {item.event.gps || mission.position.label} -{" "}
-                        {getCrewLabel(mission, item.event.actorId)}
-                      </div>
-                    </div>
-                    <span
-                      className={`severity-pill ${item.event.severity ?? "info"}`}
-                    >
-                      {item.event.type}
-                    </span>
-                  </li>
-                );
-              })}
-            </ol>
+                      return (
+                        <li
+                          className="observation-timeline-row event"
+                          key={`event-${item.event.id}`}
+                        >
+                          <span className="timeline-time">
+                            {formatClock(item.event.at)}
+                          </span>
+                          <div className="observation-card-main">
+                            <div className="timeline-row-titleline">
+                              <div>
+                                <div className="timeline-summary">
+                                  {item.event.summary}
+                                </div>
+                                <div className="timeline-detail">
+                                  {item.event.detail || "Timeline note"}
+                                </div>
+                              </div>
+                              <span
+                                className={`severity-pill ${item.event.severity ?? "info"}`}
+                              >
+                                {item.event.type}
+                              </span>
+                            </div>
+                            <div className="timeline-chip-row">
+                              <span>
+                                {item.event.gps || mission.position.label}
+                              </span>
+                              <span>
+                                {getCrewLabel(mission, item.event.actorId)}
+                              </span>
+                            </div>
+                          </div>
+                          <button
+                            className="button-icon danger"
+                            type="button"
+                            aria-label={`Delete timeline entry ${item.event.summary}`}
+                            onClick={() => removeTimelineEvent(item.event.id)}
+                          >
+                            <Trash2 aria-hidden="true" />
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                </section>
+              ))}
+            </div>
           ) : (
             <div className="empty-state">No observations logged yet.</div>
           )}

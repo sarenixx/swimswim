@@ -214,6 +214,23 @@ describe("observer-first swim flows", () => {
       gps: "33.71000° N, 118.28000° W",
       weatherSummary: "Partly cloudy - 64F air - 9 kt W",
     });
+    const dateLabel = new Date(event.at).toLocaleDateString("en-US", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+    expect(
+      await screen.findByRole("heading", { name: dateLabel }),
+    ).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", {
+        name: /Delete timeline entry Saw dolphin/i,
+      }),
+    );
+
+    expect(useMissionStore.getState().mission.timeline).toHaveLength(0);
   });
 
   it("exports a single official observation JSON record", async () => {

@@ -96,6 +96,7 @@ export interface MissionStore {
   completeOperationalTimelineItem: (itemId: string, actorId?: string) => void;
   setChecklistOwner: (itemId: string, ownerId: string) => void;
   logEvent: (event: Omit<TimelineEvent, 'id' | 'at'> & { at?: string }) => void;
+  removeTimelineEvent: (eventId: string) => void;
   logQuickAction: (kind: QuickLogKind, actorId?: string) => void;
   triggerEmergency: (kind: EmergencyKind, actorId?: string) => void;
   scheduleNextFeeding: (fromIsoTime?: string) => void;
@@ -1223,6 +1224,19 @@ const createMissionStore = (storageName: string, seedBuilder: () => Mission): Mi
             ...state,
             mission: appendTimeline(state.mission, event),
             offlineQueue: queueIfOffline(state.online, state.offlineQueue, 'log-event', event, at)
+          }));
+        },
+
+        removeTimelineEvent: (eventId) => {
+          const at = new Date().toISOString();
+
+          set((state) => ({
+            ...state,
+            mission: {
+              ...state.mission,
+              timeline: state.mission.timeline.filter((event) => event.id !== eventId)
+            },
+            offlineQueue: queueIfOffline(state.online, state.offlineQueue, 'remove-timeline-event', { eventId }, at)
           }));
         },
 

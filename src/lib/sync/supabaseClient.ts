@@ -43,14 +43,30 @@ export function isRemoteSyncAvailable() {
   return Boolean(supabase);
 }
 
+function makeBackupId(missionId: string, updatedAt: string, reason: string) {
+  const safeReason =
+    reason
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9-]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'manual';
+  const safeTimestamp = updatedAt.replace(/[:.]/g, '-');
+  const suffix =
+    globalThis.crypto?.randomUUID?.() ??
+    `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+  return `${missionId}:backup:${safeReason}:${safeTimestamp}:${suffix}`;
+}
+
 export async function backupMissionSnapshot(mission: Mission) {
   if (!supabase) {
     throw new Error('Supabase backup is not configured.');
   }
 
   const updatedAt = new Date().toISOString();
+  const missionId = getSyncMissionId(mission);
   const { error } = await supabase.from('mission_snapshots').upsert({
-    id: getSyncMissionId(mission),
+    id: missionId,
     payload: mission,
     updated_at: updatedAt,
     updated_by: getSyncClientId()
@@ -61,7 +77,36 @@ export async function backupMissionSnapshot(mission: Mission) {
   }
 
   return {
-    missionId: getSyncMissionId(mission),
+    missionId,
+    updatedAt
+  };
+}
+
+export async function saveMissionBackupSnapshot(
+  mission: Mission,
+  reason = 'manual-checkpoint'
+) {
+  if (!supabase) {
+    throw new Error('Supabase backup is not configured.');
+  }
+
+  const updatedAt = new Date().toISOString();
+  const missionId = getSyncMissionId(mission);
+  const backupId = makeBackupId(missionId, updatedAt, reason);
+  const { error } = await supabase.from('mission_snapshots').insert({
+    id: backupId,
+    payload: mission,
+    updated_at: updatedAt,
+    updated_by: getSyncClientId()
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return {
+    missionId,
+    backupId,
     updatedAt
   };
 }

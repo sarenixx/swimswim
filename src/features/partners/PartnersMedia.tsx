@@ -30,12 +30,14 @@ import {
   makeEvidenceImageKey,
   saveEvidenceImage,
 } from "../../lib/storage/evidenceStore";
+import { saveLocalMissionBackup } from "../../lib/storage/missionBackups";
 import {
   backupMissionSnapshot,
   getEvidenceImageUrl,
   getSyncMissionId,
   isRemoteSyncAvailable,
   removeEvidenceImage as removeRemoteEvidenceImage,
+  saveMissionBackupSnapshot,
   uploadEvidenceImage,
 } from "../../lib/sync/supabaseClient";
 import { getCurrentWeather, type CapturedWeather } from "../../lib/weather";
@@ -208,6 +210,10 @@ function getManualEntrySummary(note: string) {
   return trimmed.length > 64 ? `${trimmed.slice(0, 61)}...` : trimmed;
 }
 
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
 function getWakeLockNavigator() {
   return navigator as unknown as WakeLockCapableNavigator;
 }
@@ -236,6 +242,7 @@ export function PartnersMedia() {
   const [waterStatus, setWaterStatus] = useState("");
   const [storageStatus, setStorageStatus] = useState("");
   const [backupStatus, setBackupStatus] = useState("");
+  const [isBackingUpNow, setIsBackingUpNow] = useState(false);
   const [manualEventText, setManualEventText] = useState("");
   const [manualEventStatus, setManualEventStatus] = useState("");
   const [isSavingManualEvent, setIsSavingManualEvent] = useState(false);
@@ -816,14 +823,63 @@ export function PartnersMedia() {
   const observationJson = JSON.stringify(observationRecord, null, 2);
   const observationJsonHref = `data:application/json;charset=utf-8,${encodeURIComponent(observationJson)}`;
 
+  const backupDuringSwim = async () => {
+    setIsBackingUpNow(true);
+    setBackupStatus("Saving backup checkpoint...");
+
+    const latestMission = useMissionStore.getState().mission;
+    const missionId = getSyncMissionId(latestMission);
+    let localDetail = "";
+    let localBackupSaved = false;
+
+    try {
+      const localBackup = saveLocalMissionBackup(latestMission, {
+        missionId,
+        reason: "manual-checkpoint",
+      });
+      localDetail = `Local backup saved at ${new Date(localBackup.createdAt).toLocaleTimeString()}.`;
+      localBackupSaved = true;
+    } catch (error) {
+      localDetail = `Local backup failed: ${getErrorMessage(error, "backup storage unavailable")}.`;
+    }
+
+    try {
+      if (isRemoteSyncAvailable()) {
+        const [remoteBackup] = await Promise.all([
+          saveMissionBackupSnapshot(latestMission, "manual-checkpoint"),
+          backupMissionSnapshot(latestMission),
+        ]);
+        setBackupStatus(
+          `${localDetail} Supabase checkpoint saved at ${new Date(remoteBackup.updatedAt).toLocaleTimeString()}.`,
+        );
+      } else {
+        setBackupStatus(
+          `${localDetail} Supabase is not configured; ${
+            localBackupSaved
+              ? "this checkpoint is stored on this iPad."
+              : "use Official JSON or Gmail Backup now."
+          }`,
+        );
+      }
+    } catch (error) {
+      setBackupStatus(
+        `${localDetail} Supabase checkpoint failed: ${getErrorMessage(error, "remote backup failed")}.`,
+      );
+    } finally {
+      setIsBackingUpNow(false);
+    }
+  };
+
   const backupAndClose = async () => {
     completeObservationSession(activeActorId);
+    const closedMission = useMissionStore.getState().mission;
+    const missionId = getSyncMissionId(closedMission);
     setBackupStatus("Closing record...");
     updateObservationPushReminder({
-      missionId: getSyncMissionId(mission),
-      title: mission.name,
-      intervalMinutes: mission.wowsaPhotoIntervalMinutes || 30,
-      startedAt: mission.startedAt,
+      missionId,
+      title: closedMission.name,
+      intervalMinutes: closedMission.wowsaPhotoIntervalMinutes || 30,
+      startedAt: closedMission.startedAt,
       status: "completed",
     })
       .then((result) => setPushReminderStatus(result.message))
@@ -835,26 +891,40 @@ export function PartnersMedia() {
         ),
       );
 
+    let localDetail = "";
+    try {
+      const localBackup = saveLocalMissionBackup(closedMission, {
+        missionId,
+        reason: "session-complete",
+      });
+      localDetail = `Final local backup saved at ${new Date(localBackup.createdAt).toLocaleTimeString()}.`;
+    } catch (error) {
+      localDetail = `Final local backup failed: ${getErrorMessage(error, "backup storage unavailable")}.`;
+    }
+
     try {
       if (isRemoteSyncAvailable()) {
-        await backupMissionSnapshot({ ...mission, status: "completed" });
-        setBackupStatus("Supabase backup saved.");
+        const [remoteBackup] = await Promise.all([
+          saveMissionBackupSnapshot(closedMission, "session-complete"),
+          backupMissionSnapshot(closedMission),
+        ]);
+        setBackupStatus(
+          `${localDetail} Supabase final checkpoint saved at ${new Date(remoteBackup.updatedAt).toLocaleTimeString()}.`,
+        );
       } else {
-        setBackupStatus("Supabase is not configured; email backup prepared.");
+        setBackupStatus(`${localDetail} Email backup prepared.`);
       }
     } catch (error) {
       setBackupStatus(
-        error instanceof Error
-          ? error.message
-          : "Supabase backup failed; email backup prepared.",
+        `${localDetail} Supabase final checkpoint failed: ${getErrorMessage(error, "remote backup failed")}.`,
       );
     }
 
     if (import.meta.env.MODE !== "test") {
       window.location.href = mailtoHref(
-        mission.session.operationsEmail || observationEmail,
-        `${mission.name} - WOWSA Observation Record - ${new Date().toLocaleDateString("en-US")}`,
-        buildWowsaReport(mission),
+        closedMission.session.operationsEmail || observationEmail,
+        `${closedMission.name} - WOWSA Observation Record - ${new Date().toLocaleDateString("en-US")}`,
+        buildWowsaReport(closedMission),
       );
     }
   };
@@ -1244,8 +1314,17 @@ export function PartnersMedia() {
             <Database aria-hidden="true" />
           </div>
           <div className="row-actions">
-            <a
+            <button
               className="button primary"
+              type="button"
+              onClick={backupDuringSwim}
+              disabled={isBackingUpNow}
+            >
+              <Database aria-hidden="true" />
+              {isBackingUpNow ? "Backing Up" : "Backup Now"}
+            </button>
+            <a
+              className="button"
               href={observationJsonHref}
               download="wowsa-observation-record.json"
             >

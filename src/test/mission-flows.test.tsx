@@ -292,6 +292,31 @@ describe("observer-first swim flows", () => {
     ).toBe(true);
   });
 
+  it("creates a backup checkpoint from Session Export during a swim", async () => {
+    const user = userEvent.setup();
+    renderRoute("/");
+
+    await user.click(
+      await screen.findByRole("button", { name: /Start Session/i }),
+    );
+    await waitFor(() =>
+      expect(useMissionStore.getState().mission.status).toBe("active"),
+    );
+    await user.click(screen.getByRole("button", { name: /Backup Now/i }));
+
+    expect(await screen.findByText(/Local backup saved/i)).toBeInTheDocument();
+
+    const backupIndex = JSON.parse(
+      localStorage.getItem("swim-california-mission-backup-index") ?? "[]",
+    );
+    expect(backupIndex).toHaveLength(1);
+    expect(backupIndex[0]).toMatchObject({
+      reason: "manual-checkpoint",
+      status: "active",
+      observationCount: 1,
+    });
+  });
+
   it("keeps medical workflows independent with four checklists and one recovery-day checklist", async () => {
     const user = userEvent.setup();
     renderRoute("/medical");

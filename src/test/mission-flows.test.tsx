@@ -223,6 +223,7 @@ describe("observer-first swim flows", () => {
     expect(
       await screen.findByRole("heading", { name: dateLabel }),
     ).toBeInTheDocument();
+    expect(screen.getByText("Observer")).toBeInTheDocument();
 
     await user.click(
       screen.getByRole("button", {

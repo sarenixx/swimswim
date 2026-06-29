@@ -47,7 +47,6 @@ import {
 import { useNow } from "../../lib/useNow";
 import {
   formatClock,
-  getCrewLabel,
   getElapsedLabel,
   getWowsaNextDueAt,
 } from "../../state/selectors";
@@ -1406,9 +1405,7 @@ export function PartnersMedia() {
                               <span>
                                 {item.event.gps || mission.position.label}
                               </span>
-                              <span>
-                                {getCrewLabel(mission, item.event.actorId)}
-                              </span>
+                              <span>Observer</span>
                             </div>
                           </div>
                           <button

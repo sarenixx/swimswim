@@ -43,6 +43,11 @@ import {
   uploadEvidenceImage,
 } from "../../lib/sync/supabaseClient";
 import { getCurrentWeather, type CapturedWeather } from "../../lib/weather";
+import {
+  formatWaterTemperatureSource,
+  getCurrentWaterTemperature,
+  type CapturedWaterTemperature,
+} from "../../lib/waterTemperature";
 import { useNow } from "../../lib/useNow";
 import {
   formatClock,
@@ -191,6 +196,7 @@ export function PartnersMedia() {
   );
   const [gpsStatus, setGpsStatus] = useState("");
   const [weatherStatus, setWeatherStatus] = useState("");
+  const [waterStatus, setWaterStatus] = useState("");
   const [storageStatus, setStorageStatus] = useState("");
   const [backupStatus, setBackupStatus] = useState("");
   const [wakeLockStatus, setWakeLockStatus] = useState("Session timer ready.");
@@ -400,9 +406,33 @@ export function PartnersMedia() {
     }
   };
 
+  const captureWaterTemperature = async (lat: number, lon: number) => {
+    setWaterStatus("Checking NDBC water temp...");
+    try {
+      const water = await getCurrentWaterTemperature(lat, lon);
+      setWaterStatus(
+        formatWaterTemperatureSource(water, mission.conditions.waterTempF),
+      );
+      return water;
+    } catch (error) {
+      setWaterStatus(
+        error instanceof Error
+          ? `${error.message}; using onboard water temp ${Math.round(mission.conditions.waterTempF)}F.`
+          : `Using onboard water temp ${Math.round(mission.conditions.waterTempF)}F.`,
+      );
+      return {
+        source: "mission-fallback",
+        waterTempF: mission.conditions.waterTempF,
+      } satisfies CapturedWaterTemperature;
+    }
+  };
+
   const updateDraftFromContext = async () => {
     const position = await capturePosition();
-    const weather = await captureWeather(position.lat, position.lon);
+    const [weather, water] = await Promise.all([
+      captureWeather(position.lat, position.lon),
+      captureWaterTemperature(position.lat, position.lon),
+    ]);
     setPhotoDraft((draft) => ({
       ...draft,
       gps: position.label,
@@ -421,8 +451,12 @@ export function PartnersMedia() {
           ? String(Math.round(weather.windKts))
           : draft.windKts,
       windDirection: weather.windDirection ?? draft.windDirection,
+      waterTempF:
+        water.waterTempF !== undefined
+          ? String(Math.round(water.waterTempF))
+          : draft.waterTempF,
     }));
-    return { position, weather };
+    return { position, weather, water };
   };
 
   const startSession = async () => {
@@ -448,7 +482,10 @@ export function PartnersMedia() {
         ),
       );
     const position = await capturePosition();
-    const weather = await captureWeather(position.lat, position.lon);
+    const [weather, water] = await Promise.all([
+      captureWeather(position.lat, position.lon),
+      captureWaterTemperature(position.lat, position.lon),
+    ]);
     startObservationSession({
       at,
       gps: position.label,
@@ -457,7 +494,7 @@ export function PartnersMedia() {
       gpsAccuracyM: position.accuracyM,
       weatherSummary: weather.summary,
       airTempF: weather.airTempF,
-      waterTempF: mission.conditions.waterTempF,
+      waterTempF: water.waterTempF ?? mission.conditions.waterTempF,
       windKts: weather.windKts,
       windDirection: weather.windDirection,
       actorId: activeActorId,
@@ -502,6 +539,9 @@ export function PartnersMedia() {
       let lon = photoDraft.lon;
       let gps = photoDraft.gps;
       let gpsAccuracyM = photoDraft.gpsAccuracyM;
+      let waterTempF =
+        numberOrUndefined(photoDraft.waterTempF) ??
+        mission.conditions.waterTempF;
       let weather: CapturedWeather = {
         summary: photoDraft.weatherSummary || mission.conditions.summary,
         airTempF:
@@ -518,6 +558,7 @@ export function PartnersMedia() {
         gps = context.position.label;
         gpsAccuracyM = context.position.accuracyM;
         weather = context.weather;
+        waterTempF = context.water.waterTempF ?? waterTempF;
       }
 
       const imageStorageKey = makeEvidenceImageKey(
@@ -541,9 +582,7 @@ export function PartnersMedia() {
         notes: photoDraft.notes.trim(),
         weatherSummary: weather.summary,
         airTempF: weather.airTempF,
-        waterTempF:
-          numberOrUndefined(photoDraft.waterTempF) ??
-          mission.conditions.waterTempF,
+        waterTempF,
         windKts: weather.windKts,
         windDirection: weather.windDirection,
         feedCompleted: photoDraft.feedCompleted,
@@ -1007,7 +1046,7 @@ export function PartnersMedia() {
                   {isSavingEvidence ? "Saving" : "Save Observation"}
                 </button>
               </div>
-              {[gpsStatus, weatherStatus, storageStatus]
+              {[gpsStatus, weatherStatus, waterStatus, storageStatus]
                 .filter(Boolean)
                 .map((status) => (
                   <p className="row-meta observation-status" key={status}>

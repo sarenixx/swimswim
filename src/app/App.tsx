@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Copy, Radio, RotateCcw, Wifi, WifiOff } from 'lucide-react';
+import { Copy, Radio, RotateCcw } from 'lucide-react';
 import logoUrl from '../assets/logo.webp';
 import { useMissionSync } from '../lib/sync/useMissionSync';
 import { createLiveStateFromTemplate, useLiveMissionStore, useMissionStore } from '../state/useMissionStore';
@@ -117,20 +117,6 @@ export function AppShell() {
             >
               {sqlSync.label}
             </span>
-            <button
-              className="button-icon"
-              type="button"
-              title={online ? 'Switch to offline simulation' : 'Restore online simulation'}
-              aria-label={online ? 'Switch to offline simulation' : 'Restore online simulation'}
-              onClick={() => setOnlineStatus(!online)}
-            >
-              {online ? <Wifi aria-hidden="true" /> : <WifiOff aria-hidden="true" />}
-            </button>
-            {!inTemplateMode ? (
-              <button className="button-icon" type="button" title="Reset live mission" aria-label="Reset live mission" onClick={resetMission}>
-                <RotateCcw aria-hidden="true" />
-              </button>
-            ) : null}
             <span className={`status-pill ${mission.status}`}>
               <Radio aria-hidden="true" size={14} />
               {mission.status}

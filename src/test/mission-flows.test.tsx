@@ -96,6 +96,12 @@ describe("observer-first swim flows", () => {
       screen.getByRole("button", { name: /Start Session/i }),
     ).toBeInTheDocument();
     expect(screen.getAllByText("Medical").length).toBeGreaterThan(0);
+    expect(
+      screen.queryByRole("button", { name: /Reset live mission/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /offline simulation/i }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText(/Planned Distance/i)).not.toBeInTheDocument();
   });
 

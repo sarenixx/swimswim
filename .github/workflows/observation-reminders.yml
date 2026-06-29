@@ -1,0 +1,19 @@
+name: Observation Reminders
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  trigger-reminders:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger observation reminder service
+        run: |
+          curl --fail --silent --show-error --max-time 25 \
+            --request POST \
+            https://swimswim.vercel.app/api/cron/observation-reminders

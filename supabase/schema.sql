@@ -106,6 +106,93 @@ on storage.objects
 for delete
 using (bucket_id = 'wowsa-evidence');
 
+create table if not exists public.observation_push_subscriptions (
+  endpoint text primary key,
+  mission_id text not null,
+  subscription jsonb not null,
+  user_agent text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.observation_push_subscriptions enable row level security;
+
+grant select, insert, update, delete on public.observation_push_subscriptions to anon, authenticated;
+
+drop policy if exists "observation push subscriptions readable for test swim" on public.observation_push_subscriptions;
+create policy "observation push subscriptions readable for test swim"
+on public.observation_push_subscriptions
+for select
+using (true);
+
+drop policy if exists "observation push subscriptions writable for test swim" on public.observation_push_subscriptions;
+create policy "observation push subscriptions writable for test swim"
+on public.observation_push_subscriptions
+for insert
+with check (true);
+
+drop policy if exists "observation push subscriptions updatable for test swim" on public.observation_push_subscriptions;
+create policy "observation push subscriptions updatable for test swim"
+on public.observation_push_subscriptions
+for update
+using (true)
+with check (true);
+
+drop policy if exists "observation push subscriptions removable for test swim" on public.observation_push_subscriptions;
+create policy "observation push subscriptions removable for test swim"
+on public.observation_push_subscriptions
+for delete
+using (true);
+
+create table if not exists public.observation_reminder_sessions (
+  id text primary key,
+  mission_id text not null,
+  endpoint text not null references public.observation_push_subscriptions(endpoint) on delete cascade,
+  subscription jsonb not null,
+  title text not null,
+  interval_minutes integer not null default 30 check (interval_minutes between 5 and 180),
+  started_at timestamptz not null,
+  next_due_at timestamptz,
+  last_sent_at timestamptz,
+  last_attempt_at timestamptz,
+  last_error text,
+  status text not null default 'active' check (status in ('active', 'completed', 'paused', 'expired')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists observation_reminder_sessions_due_idx
+on public.observation_reminder_sessions(status, next_due_at);
+
+alter table public.observation_reminder_sessions enable row level security;
+
+grant select, insert, update, delete on public.observation_reminder_sessions to anon, authenticated;
+
+drop policy if exists "observation reminder sessions readable for test swim" on public.observation_reminder_sessions;
+create policy "observation reminder sessions readable for test swim"
+on public.observation_reminder_sessions
+for select
+using (true);
+
+drop policy if exists "observation reminder sessions writable for test swim" on public.observation_reminder_sessions;
+create policy "observation reminder sessions writable for test swim"
+on public.observation_reminder_sessions
+for insert
+with check (true);
+
+drop policy if exists "observation reminder sessions updatable for test swim" on public.observation_reminder_sessions;
+create policy "observation reminder sessions updatable for test swim"
+on public.observation_reminder_sessions
+for update
+using (true)
+with check (true);
+
+drop policy if exists "observation reminder sessions removable for test swim" on public.observation_reminder_sessions;
+create policy "observation reminder sessions removable for test swim"
+on public.observation_reminder_sessions
+for delete
+using (true);
+
 do $$
 begin
   alter publication supabase_realtime add table public.mission_snapshots;

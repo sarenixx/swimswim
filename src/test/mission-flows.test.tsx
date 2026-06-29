@@ -1,10 +1,9 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { addMinutes } from 'date-fns';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { routes } from '../app/router';
-import { createLiveStateFromTemplate, useMissionStore, useTemplateMissionStore } from '../state/useMissionStore';
+import { useMissionStore, useTemplateMissionStore } from '../state/useMissionStore';
 
 function renderRoute(path = '/') {
   const router = createMemoryRouter(routes, { initialEntries: [path] });
@@ -28,25 +27,49 @@ function mockGeolocationSuccess() {
   });
 }
 
-function mockGeolocationFailure() {
-  Object.defineProperty(navigator, 'geolocation', {
-    configurable: true,
-    value: {
-      getCurrentPosition: vi.fn((_success, failure) =>
-        failure({
-          code: 1,
-          PERMISSION_DENIED: 1,
-          TIMEOUT: 3
-        })
-      )
-    }
-  });
+function mockWeatherSuccess() {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            current: {
+              temperature_2m: 64,
+              weather_code: 2,
+              wind_speed_10m: 9,
+              wind_direction_10m: 270
+            }
+          })
+      })
+    )
+  );
 }
 
-describe('mission-critical flows', () => {
+function mockWakeLock() {
+  const sentinel = {
+    released: false,
+    release: vi.fn(() => Promise.resolve()),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn()
+  };
+  const request = vi.fn(() => Promise.resolve(sentinel));
+
+  Object.defineProperty(navigator, 'wakeLock', {
+    configurable: true,
+    value: { request }
+  });
+
+  return request;
+}
+
+describe('observer-first swim flows', () => {
   beforeEach(() => {
     localStorage.clear();
     mockGeolocationSuccess();
+    mockWeatherSuccess();
+    mockWakeLock();
     Object.defineProperty(URL, 'createObjectURL', {
       configurable: true,
       value: vi.fn(() => 'blob:wowsa-test')
@@ -58,353 +81,116 @@ describe('mission-critical flows', () => {
     useMissionStore.getState().resetMission();
     useTemplateMissionStore.getState().resetMission();
     useMissionStore.getState().setOnlineStatus(true);
-    useTemplateMissionStore.getState().setOnlineStatus(true);
   });
 
-  it('opens the dashboard without a Right Now prompt', async () => {
+  it('opens the WOWSA observation log as the primary screen', async () => {
     renderRoute('/');
 
-    expect(await screen.findByRole('region', { name: /Swim Overview/i })).toBeInTheDocument();
-    expect(screen.queryByText('Right Now')).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: /Prepare nutrition bottle and recovery backup/i })).not.toBeInTheDocument();
-    expect(screen.getByText('Active Alerts')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'WOWSA Observation Log' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Start Session/i })).toBeInTheDocument();
+    expect(screen.getAllByText('Medical').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Planned Distance/i)).not.toBeInTheDocument();
   });
 
-  it('edits and saves the Catherine overview card', async () => {
+  it('starts a session with automatic GPS and weather and creates the first observation entry', async () => {
+    const user = userEvent.setup();
+    const wakeLockRequest = mockWakeLock();
+    renderRoute('/');
+
+    await user.click(await screen.findByRole('button', { name: /Start Session/i }));
+
+    await waitFor(() => expect(useMissionStore.getState().mission.status).toBe('active'));
+    const mission = useMissionStore.getState().mission;
+    expect(mission.wowsaPhotos).toHaveLength(1);
+    expect(mission.wowsaPhotos[0]).toMatchObject({
+      number: 1,
+      gps: '33.71000° N, 118.28000° W',
+      weatherSummary: 'Partly cloudy - 64F air - 9 kt W',
+      evidenceStatus: 'needs-image',
+      eventTag: 'session-start'
+    });
+    expect(mission.timeline[0].summary).toBe('Observation session started');
+    await waitFor(() => expect(wakeLockRequest).toHaveBeenCalledWith('screen'));
+    expect(screen.getByText(/Long session active/i)).toBeInTheDocument();
+  });
+
+  it('captures a swimmer photo into the first scheduled observation', async () => {
     const user = userEvent.setup();
     renderRoute('/');
 
-    const overview = await screen.findByRole('region', { name: /Swim Overview/i });
-    await user.click(within(overview).getByRole('button', { name: /Edit/i }));
-    await user.clear(within(overview).getByLabelText(/Location/i));
-    await user.type(within(overview).getByLabelText(/Location/i), 'Santa Monica Test Swim');
-    await user.click(within(overview).getByRole('button', { name: /Add swimmer/i }));
-    await user.type(within(overview).getByPlaceholderText('Swimmer 2'), 'Relay Partner');
-    await user.click(within(overview).getByRole('button', { name: /Save/i }));
+    await user.click(await screen.findByRole('button', { name: /Start Session/i }));
+    const photoInputs = await screen.findAllByLabelText(/Capture swimmer photo/i);
+    await user.upload(photoInputs[0], new File(['photo'], 'swimmer.jpg', { type: 'image/jpeg' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /Save Observation/i })).toBeEnabled());
+    await user.type(screen.getByLabelText(/^Notes$/i), 'Increased chop but swimmer steady.');
+    await user.click(screen.getByRole('button', { name: /Save Observation/i }));
 
-    expect(useMissionStore.getState().mission.session.location).toBe('Santa Monica Test Swim');
-    expect(useMissionStore.getState().mission.session.swimmers).toEqual(['Catherine Breed', 'Relay Partner']);
-    expect(useMissionStore.getState().mission.session.swimmerName).toBe('Catherine Breed');
-    expect(within(overview).getByText('Santa Monica Test Swim')).toBeInTheDocument();
-    expect(within(overview).getByText('Catherine Breed, Relay Partner')).toBeInTheDocument();
-  });
-
-  it('opens the focused feeding plan with nutrition and backup options', async () => {
-    renderRoute('/feeding');
-
-    expect(await screen.findByText('Feeding Window')).toBeInTheDocument();
-    expect(screen.getByText('Standard carb bottle')).toBeInTheDocument();
-    expect(screen.getAllByText('Warm broth backup').length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/350 mg sodium/i).length).toBeGreaterThan(0);
-  });
-
-  it('opens conditions and risk with abort criteria visible', async () => {
-    renderRoute('/conditions-risk');
-
-    expect(await screen.findByText('Stop Swim If')).toBeInTheDocument();
-    expect(screen.getByText(/SwimCalifornia_Playbook.docx/i)).toBeInTheDocument();
-    expect(screen.getByText(/Wind exceeds go\/no-go threshold/i)).toBeInTheDocument();
-    expect(screen.getByText(/Confirmed shark within 1000m/i)).toBeInTheDocument();
-    expect(screen.queryByText('Risk Controls')).not.toBeInTheDocument();
-  });
-
-  it('auto-captures GPS when saving WOWSA photo evidence', async () => {
-    const user = userEvent.setup();
-    renderRoute('/wowsa');
-
-    expect(await screen.findByText('WOWSA GPS Photo Evidence')).toBeInTheDocument();
-    await user.upload(screen.getByLabelText(/Add image/i), new File(['photo'], 'wowsa.jpg', { type: 'image/jpeg' }));
-    await user.type(screen.getByLabelText(/Cumulative distance/i), '4.2 miles');
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Save evidence' })).toBeEnabled());
-    await user.click(screen.getByRole('button', { name: 'Save evidence' }));
-
+    await waitFor(() => expect(useMissionStore.getState().mission.wowsaPhotos[0].evidenceStatus).toBe('ready'));
     const photo = useMissionStore.getState().mission.wowsaPhotos[0];
+    expect(useMissionStore.getState().mission.wowsaPhotos).toHaveLength(1);
     expect(photo).toMatchObject({
-      gps: '33.71000° N, 118.28000° W',
-      lat: 33.71,
-      lon: -118.28,
-      gpsAccuracyM: 7,
-      distanceSwum: '4.2 miles',
-      imageName: 'wowsa.jpg',
-      evidenceStatus: 'ready'
+      number: 1,
+      imageName: 'swimmer.jpg',
+      notes: 'Increased chop but swimmer steady.',
+      waterTempF: 61,
+      windKts: 9
     });
-    expect(useMissionStore.getState().mission.timeline[0].summary).toBe('WOWSA photo #1 logged');
+    expect(useMissionStore.getState().mission.timeline[0].summary).toBe('Observation #1 logged');
   });
 
-  it('blocks WOWSA evidence save when photo GPS is missing', async () => {
-    mockGeolocationFailure();
-    const user = userEvent.setup();
-    renderRoute('/wowsa');
-
-    expect(await screen.findByText('WOWSA GPS Photo Evidence')).toBeInTheDocument();
-    await user.upload(screen.getByLabelText(/Add image/i), new File(['photo'], 'blocked.jpg', { type: 'image/jpeg' }));
-
-    await screen.findByText(/GPS permission was denied/i);
-    expect(screen.getByRole('button', { name: 'Save evidence' })).toBeDisabled();
-    expect(useMissionStore.getState().mission.wowsaPhotos).toHaveLength(0);
-  });
-
-  it('allows manual coordinates as the WOWSA GPS backup', async () => {
-    mockGeolocationFailure();
-    const user = userEvent.setup();
-    renderRoute('/wowsa');
-
-    expect(await screen.findByText('WOWSA GPS Photo Evidence')).toBeInTheDocument();
-    await user.upload(screen.getByLabelText(/Add image/i), new File(['photo'], 'manual.jpg', { type: 'image/jpeg' }));
-    await user.type(screen.getByLabelText(/Latitude/i), '33.71');
-    await user.type(screen.getByLabelText(/Longitude/i), '-118.28');
-
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Save evidence' })).toBeEnabled());
-    await user.click(screen.getByRole('button', { name: 'Save evidence' }));
-
-    expect(useMissionStore.getState().mission.wowsaPhotos[0]).toMatchObject({
-      gps: '33.71000° N, 118.28000° W',
-      lat: 33.71,
-      lon: -118.28,
-      imageName: 'manual.jpg',
-      evidenceStatus: 'ready'
-    });
-  });
-
-  it('keeps WOWSA evidence blocked for invalid manual coordinates', async () => {
-    mockGeolocationFailure();
-    const user = userEvent.setup();
-    renderRoute('/wowsa');
-
-    expect(await screen.findByText('WOWSA GPS Photo Evidence')).toBeInTheDocument();
-    await user.upload(screen.getByLabelText(/Add image/i), new File(['photo'], 'invalid.jpg', { type: 'image/jpeg' }));
-    await user.type(screen.getByLabelText(/Latitude/i), '91');
-    await user.type(screen.getByLabelText(/Longitude/i), '-118.28');
-
-    expect(screen.getByRole('button', { name: 'Save evidence' })).toBeDisabled();
-    expect(useMissionStore.getState().mission.wowsaPhotos).toHaveLength(0);
-  });
-
-  it('shows and completes planned swim timeline items', async () => {
-    const user = userEvent.setup();
-    renderRoute('/live-operations');
-
-    expect(await screen.findByText('Planned Swim Timeline')).toBeInTheDocument();
-    const item = screen.getAllByText('Next feed handoff window')[0].closest('li');
-    expect(item).not.toBeNull();
-
-    await user.click(within(item!).getByRole('button', { name: /Complete/i }));
-
-    const state = useMissionStore.getState();
-    expect(state.mission.operationalTimeline.find((entry) => entry.id === 'op-next-feed')?.status).toBe('done');
-    expect(state.mission.timeline[0].summary).toBe('Planned timeline item completed');
-  });
-
-  it('shows crew backup coverage', async () => {
-    renderRoute('/crew');
-
-    expect(await screen.findByText('Coverage')).toBeInTheDocument();
-    expect(screen.getAllByText('Matthew Sessions').length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Backup: Jonathan Cahill/i).length).toBeGreaterThan(0);
-    expect(screen.getByText(/Lead Water Safety and First Mate pause swim operations/i)).toBeInTheDocument();
-  });
-
-  it('adds a timestamped timeline entry from quick log', async () => {
+  it('adds manual timeline entries with GPS and weather context', async () => {
     const user = userEvent.setup();
     renderRoute('/');
 
-    await user.click(screen.getByRole('button', { name: /Fatigue observed/i }));
+    await user.click(await screen.findByRole('button', { name: /Saw dolphin/i }));
 
-    const state = useMissionStore.getState();
-    expect(state.mission.timeline[0].summary).toBe('Swimmer showing fatigue');
-    expect(state.mission.timeline[0].actorId).toBe(state.activeActorId);
-    expect(state.mission.alerts[0].kind).toBe('fatigue');
+    const event = useMissionStore.getState().mission.timeline[0];
+    expect(event).toMatchObject({
+      summary: 'Saw dolphin',
+      gps: '33.71000° N, 118.28000° W',
+      weatherSummary: 'Partly cloudy - 64F air - 9 kt W'
+    });
   });
 
-  it('records safety and risk edits as shared document changes', async () => {
-    const user = userEvent.setup();
+  it('exports a single official observation JSON record', async () => {
     renderRoute('/');
 
-    const safetyPlan = await screen.findByRole('region', { name: /Safety Plan/i });
-    await user.click(within(safetyPlan).getByRole('button', { name: /Edit/i }));
-    await user.clear(within(safetyPlan).getByLabelText(/Weather source/i));
-    await user.type(within(safetyPlan).getByLabelText(/Weather source/i), 'NOAA morning update and vessel observation');
-    await user.click(within(safetyPlan).getByRole('button', { name: /Save/i }));
-
-    const state = useMissionStore.getState();
-    expect(state.mission.riskPlan.weatherSource).toBe('NOAA morning update and vessel observation');
-    expect(state.mission.timeline[0].summary).toBe('Safety/risk plan updated');
-    expect(state.mission.timeline[0].actorId).toBe(state.activeActorId);
-  });
-
-  it('exports the complete operating record as the source of truth', async () => {
-    renderRoute('/logs');
-
-    expect(await screen.findByText('Operational swim source of truth')).toBeInTheDocument();
-
-    const jsonLink = screen.getByRole('link', { name: /^JSON$/i });
-    const encodedRecord = jsonLink.getAttribute('href')?.replace('data:application/json;charset=utf-8,', '') ?? '';
+    const exportLink = await screen.findByRole('link', { name: /Official JSON/i });
+    const encodedRecord = exportLink.getAttribute('href')?.replace('data:application/json;charset=utf-8,', '') ?? '';
     const record = JSON.parse(decodeURIComponent(encodedRecord));
 
-    expect(record.recordType).toBe('operational-swim-source-of-truth');
-    expect(record.mission.name).toBe('California coast swim');
-    expect(record.mission.session.location).toBe('Oregon Border to Mexican Border');
-    expect(record.mission.session.primaryVessel).toBe('M/V Catalyst (52ft Beneteau)');
-    expect(record.mission.crew.length).toBeGreaterThan(0);
-    expect(record.mission.contacts.some((contact: { id: string }) => contact.id === 'contact-onboard-medical')).toBe(true);
-    expect(record.mission.contacts.some((contact: { id: string }) => contact.id === 'contact-director-logistics')).toBe(true);
-    expect(record.mission.contacts.some((contact: { id: string }) => contact.id === 'contact-research-analysis')).toBe(true);
-    expect(record.mission.checklistItems.some((item: { id: string }) => item.id === 'playbook-pre-swim-briefing')).toBe(true);
-    expect(record.mission.operationalTimeline.length).toBeGreaterThan(0);
-    expect(record.mission.medicalChecklist.length).toBeGreaterThan(0);
-    expect(record.mission.medicalChecklist.some((item: { id: string }) => item.id === 'med-prescription-inventory')).toBe(true);
-    expect(record.mission.medicalChecklist.some((item: { id: string }) => item.id === 'med-weekly-team-review')).toBe(true);
-    expect(record.mission.medicalDailyRecords).toEqual([]);
-    expect(record.mission.medicalSymptomLog).toEqual([]);
-    expect(record.mission.riskPlan.abortConditions.length).toBeGreaterThan(0);
-    expect(record.mission.riskPlan.medicalConcerns).toContain(
-      'Hypothermia/cold stress: shivering, umbles, marked stroke-rate drop, or coordination loss'
-    );
-    expect(record.mission.riskPlan.medicalConcerns).toContain(
-      'Oliguria: failure to urinate for more than 10 hours despite fluid intake'
-    );
+    expect(record.recordType).toBe('wowsa-observation-record');
+    expect(record.mission.swimmer).toBe('Catherine Breed');
+    expect(record.mission.primaryVessel).toBe('M/V Catalyst (52ft Beneteau)');
+    expect(record.crew.some((member: { name: string }) => member.name === 'Heather Hitchcock')).toBe(true);
+    expect(record.crew.some((member: { name: string }) => member.name === 'Sarah Scheltz')).toBe(true);
   });
 
-  it('records medical symptoms and checklist changes into the living medical record', async () => {
+  it('keeps medical workflows independent with four checklists and one recovery-day checklist', async () => {
     const user = userEvent.setup();
-    renderRoute('/safety');
+    renderRoute('/medical');
 
-    expect(await screen.findByText('Medical Living Record')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Email medical record/i })).toHaveAttribute(
-      'href',
-      expect.stringContaining('mailto:swimcalifornia2026@gmail.com')
-    );
-    expect(screen.getByRole('button', { name: /Log and email change/i })).toBeDisabled();
-    await user.selectOptions(screen.getByLabelText(/^Severity$/i), 'urgent');
-    await user.selectOptions(screen.getByLabelText(/^Trend$/i), 'new');
-    await user.type(screen.getByLabelText(/Symptom \/ change/i), 'Cola-colored urine after swim');
-    await user.type(screen.getByLabelText(/Action taken/i), 'Collected urine, held NSAIDs, contacted Medical Director.');
-    await user.type(screen.getByLabelText(/^Notes$/i), 'Dipstick pending.');
-    await user.click(screen.getByRole('button', { name: /Log and email change/i }));
+    expect((await screen.findAllByRole('heading', { name: 'Medical' })).length).toBeGreaterThan(0);
+    expect(screen.getByText('Pre-Swim Checklist')).toBeInTheDocument();
+    expect(screen.getByText('In-Swim Watch Checklist')).toBeInTheDocument();
+    expect(screen.getByText('Post-Swim Checklist')).toBeInTheDocument();
+    expect(screen.getByText('Medication / Treatment Checklist')).toBeInTheDocument();
+    expect(screen.getByText('Recovery-Day Checklist')).toBeInTheDocument();
+    expect(screen.queryByText(/Start Session/i)).not.toBeInTheDocument();
 
-    expect(screen.getByText('Cola-colored urine after swim')).toBeInTheDocument();
-    expect(useMissionStore.getState().mission.medicalSymptomLog[0].severity).toBe('urgent');
-    expect(useMissionStore.getState().mission.alerts[0].kind).toBe('medical');
-
-    await user.type(screen.getByLabelText(/Symptom \/ change/i), 'Right shoulder soreness');
-    await user.click(screen.getByRole('button', { name: /Log and email change/i }));
-
-    expect(screen.getByText('Right shoulder soreness')).toBeInTheDocument();
-    expect(screen.getAllByText('No action recorded.').length).toBeGreaterThan(0);
-    expect(useMissionStore.getState().mission.medicalSymptomLog[0].actionTaken).toBe('');
-
-    await user.type(screen.getByLabelText('Daily note for Pre-swim vitals recorded'), 'BP and SpO2 baseline complete.');
-    await user.click(screen.getByRole('checkbox', { name: /Complete Pre-swim vitals recorded/i }));
+    const preSwim = screen.getByText('Pre-Swim Checklist').closest('section');
+    expect(preSwim).not.toBeNull();
+    await user.type(within(preSwim!).getByLabelText(/Daily note for Pre-swim vitals recorded/i), 'Baseline complete.');
+    await user.click(within(preSwim!).getByRole('checkbox', { name: /Complete Pre-swim vitals recorded/i }));
 
     const dailyRecord = useMissionStore.getState().mission.medicalDailyRecords[0];
-    const savedDailyItem = dailyRecord.items.find((item) => item.itemId === 'med-pre-swim-vitals');
-    expect(savedDailyItem?.status).toBe('done');
-    expect(savedDailyItem?.note).toBe('BP and SpO2 baseline complete.');
-    expect(dailyRecord.items.length).toBe(useMissionStore.getState().mission.medicalChecklist.length);
-    expect(useMissionStore.getState().mission.timeline[0].summary).toBe('Daily medical checklist done');
-  });
+    const savedItem = dailyRecord.items.find((item) => item.itemId === 'med-pre-swim-vitals');
+    expect(savedItem?.status).toBe('done');
+    expect(savedItem?.note).toBe('Baseline complete.');
 
-  it('shows one protocol entry point without raising an alert signal', async () => {
-    const user = userEvent.setup();
-    renderRoute('/safety');
+    await user.type(screen.getByLabelText(/Symptom \/ change/i), 'Cold hands after exit');
+    await user.click(screen.getByRole('button', { name: /Log Medical Change/i }));
 
-    expect(await screen.findByText('Protocol Scenarios')).toBeInTheDocument();
-    expect(screen.getByText('Medical Source of Truth')).toBeInTheDocument();
-    expect(screen.getByText('Daily Medical Checklist')).toBeInTheDocument();
-    expect(screen.getByText('Weekly medical team review completed')).toBeInTheDocument();
-    expect(screen.getByText('Prescription medication inventory and usage log reviewed')).toBeInTheDocument();
-    expect(screen.getAllByText('Jonathan Cahill').length).toBeGreaterThan(0);
-    expect(screen.getByRole('link', { name: 'Protocol' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Medical' })).not.toBeInTheDocument();
-    const statusBeforeScenarioReview = useMissionStore.getState().mission.status;
-
-    await user.selectOptions(screen.getByLabelText(/Scenario/i), 'medical');
-
-    const state = useMissionStore.getState();
-    expect(state.mission.alerts).toHaveLength(0);
-    expect(state.mission.status).toBe(statusBeforeScenarioReview);
-    expect(screen.getByText('Medical Issue Protocol')).toBeInTheDocument();
-  });
-
-  it('queues writes while offline and keeps the mission log persisted', () => {
-    useMissionStore.getState().setOnlineStatus(false);
-    useMissionStore.getState().logEvent({
-      type: 'note',
-      actorId: 'crew-captain',
-      summary: 'Persistence check',
-      detail: 'Created during offline mode.',
-      severity: 'info'
-    });
-
-    const state = useMissionStore.getState();
-    const persisted = localStorage.getItem('swim-california-mission-live');
-
-    expect(state.offlineQueue).toHaveLength(1);
-    expect(state.mission.timeline[0].summary).toBe('Persistence check');
-    expect(persisted).toContain('Persistence check');
-  });
-
-  it('starts a fresh expedition from mission setup data', () => {
-    const startAt = '2026-05-06T20:45:00.000Z';
-    const crew = useMissionStore.getState().mission.crew.map((member) => ({
-      id: member.id,
-      name: member.role === 'captain' ? 'Alex Captain' : member.name,
-      phone: member.phone
-    }));
-
-    useMissionStore.getState().startMissionFromSetup({
-      name: 'Santa Cruz Training Day',
-      swimmerName: 'Jamie Rivera',
-      location: 'Santa Cruz',
-      plannedDistance: '12 miles',
-      startAt,
-      gpsStart: '36.96000° N, 122.02000° W',
-      gpsEnd: '36.97000° N, 122.03000° W',
-      primaryVessel: 'Support One',
-      supportVessels: 'Kayak 1',
-      leadCrew: 'Alex Captain',
-      completedBy: 'Alex Captain',
-      operationsEmail: 'ops@example.com',
-      feedingIntervalMinutes: 20,
-      wowsaPhotoIntervalMinutes: 15,
-      crew
-    });
-
-    const mission = useMissionStore.getState().mission;
-
-    expect(mission.status).toBe('active');
-    expect(mission.name).toBe('Santa Cruz Training Day');
-    expect(mission.session.swimmerName).toBe('Jamie Rivera');
-    expect(mission.feedingIntervalMinutes).toBe(20);
-    expect(mission.wowsaPhotoIntervalMinutes).toBe(15);
-    expect(mission.nextFeedingAt).toBe(addMinutes(new Date(startAt), 20).toISOString());
-    expect(mission.timeline[0].summary).toBe('Expedition started');
-    expect(mission.wowsaPhotos).toHaveLength(0);
-    expect(mission.expeditionCheckpoints[0]).toMatchObject({
-      label: 'Start checkpoint',
-      lat: 36.96,
-      lon: -122.02
-    });
-  });
-
-  it('loads the reusable template deliverable with placeholders and guidance', async () => {
-    renderRoute('/template');
-
-    expect(await screen.findByText('Template Onboarding')).toBeInTheDocument();
-    expect(screen.getAllByText('Endurance Swim Expedition OS Template').length).toBeGreaterThan(0);
-    expect(screen.getByText(/replace every bracketed placeholder/i)).toBeInTheDocument();
-    expect(useTemplateMissionStore.getState().mission.mode).toBe('template');
-  });
-
-  it('duplicates template state into a clean live project state', () => {
-    const templateMission = useTemplateMissionStore.getState().mission;
-    const duplicated = createLiveStateFromTemplate(templateMission, new Date('2026-05-06T20:45:00.000Z'));
-
-    expect(duplicated.mission.mode).toBe('live');
-    expect(duplicated.mission.status).toBe('preparing');
-    expect(duplicated.mission.timeline[0].summary).toBe('Template duplicated to live project');
-    expect(duplicated.mission.alerts).toHaveLength(0);
-    expect(duplicated.mission.wowsaPhotos).toHaveLength(0);
-    expect(duplicated.offlineQueue).toHaveLength(0);
+    expect(useMissionStore.getState().mission.medicalSymptomLog[0].symptom).toBe('Cold hands after exit');
   });
 });

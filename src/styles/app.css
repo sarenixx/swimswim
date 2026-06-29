@@ -1569,6 +1569,204 @@ input[type="range"] {
   min-height: 56px;
 }
 
+.visually-hidden-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.observation-console {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.observation-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-4);
+  align-items: center;
+  min-height: 184px;
+  padding: var(--space-6);
+  color: var(--color-white);
+  background: var(--color-night);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-panel);
+}
+
+.observation-hero.active {
+  background: #123b4a;
+}
+
+.observation-hero-title {
+  margin: var(--space-2) 0;
+  font-size: 2.35rem;
+  line-height: 1.05;
+}
+
+.observation-hero-meta {
+  max-width: 760px;
+  margin: 0;
+  color: rgba(247, 250, 252, 0.82);
+}
+
+.long-session-status {
+  margin-top: var(--space-2);
+  color: rgba(247, 250, 252, 0.92);
+  font-weight: 800;
+}
+
+.observation-hero-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.observation-start-button {
+  min-width: 240px;
+  min-height: 78px;
+  font-size: 1.08rem;
+  font-weight: 900;
+}
+
+.observation-metrics {
+  grid-template-columns: 1fr;
+}
+
+.observation-capture-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.85fr) minmax(0, 1.15fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.observation-photo-drop {
+  display: grid;
+  min-height: 360px;
+  overflow: hidden;
+  background: #eef5f8;
+  border: 2px dashed #b9cedb;
+  border-radius: var(--radius-card);
+}
+
+.observation-photo-drop img {
+  width: 100%;
+  height: 100%;
+  min-height: 360px;
+  object-fit: cover;
+}
+
+.photo-prompt {
+  display: grid;
+  gap: var(--space-3);
+  place-items: center;
+  min-height: 360px;
+  padding: var(--space-5);
+  color: var(--color-ocean-deep);
+  font-size: 1.05rem;
+  font-weight: 900;
+  text-align: center;
+}
+
+.photo-prompt svg {
+  width: 56px;
+  height: 56px;
+}
+
+.observation-form {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.manual-gps-details > summary {
+  min-height: 44px;
+  color: var(--color-ocean-deep);
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.manual-gps-details[open] {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.observation-checkbox {
+  justify-self: start;
+}
+
+.observation-status {
+  margin: 0;
+}
+
+.quick-event-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.quick-event-button {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: center;
+  min-height: 68px;
+  padding: 0 var(--space-3);
+  color: var(--color-night);
+  background: #f9fbfd;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  font-weight: 900;
+}
+
+.quick-event-button svg {
+  width: 20px;
+  height: 20px;
+  color: var(--color-ocean-deep);
+}
+
+.observation-timeline {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.observation-timeline-row {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: start;
+  padding: var(--space-3);
+  background: #f9fbfd;
+  border: 1px solid var(--color-line);
+  border-left: 5px solid var(--color-ocean);
+  border-radius: var(--radius-card);
+}
+
+.observation-timeline-row.event {
+  border-left-color: var(--color-safety);
+}
+
+.observation-card-main {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.observation-thumb {
+  width: min(100%, 520px);
+  max-height: 320px;
+  object-fit: cover;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+}
+
+.observation-note {
+  margin: 0;
+  color: var(--color-ink);
+}
+
 @media (max-width: 1180px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -1594,6 +1792,7 @@ input[type="range"] {
 
   .mobile-nav {
     display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -1621,7 +1820,11 @@ input[type="range"] {
 
   .mission-emergency-strip,
   .cadence-row,
-  .setup-command {
+  .setup-command,
+  .observation-hero,
+  .observation-capture-grid,
+  .quick-event-grid,
+  .observation-timeline-row {
     grid-template-columns: 1fr;
   }
 
@@ -1735,6 +1938,6 @@ input[type="range"] {
   }
 
   .mobile-nav {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

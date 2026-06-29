@@ -12,6 +12,7 @@ import type {
   CrewRole,
   DailySessionInfo,
   EmergencyKind,
+  EnvironmentalConditions,
   ExpeditionCheckpoint,
   MedicalChecklistItem,
   MedicalChecklistStatus,
@@ -63,6 +64,20 @@ export interface MissionStore {
   replaceMissionFromSync: (mission: Mission) => void;
   setActiveActor: (actorId: string) => void;
   setSelectedRole: (role: CrewRole) => void;
+  startObservationSession: (input: {
+    at?: string;
+    gps: string;
+    lat?: number;
+    lon?: number;
+    gpsAccuracyM?: number;
+    weatherSummary?: string;
+    airTempF?: number;
+    waterTempF?: number;
+    windKts?: number;
+    windDirection?: string;
+    actorId?: string;
+  }) => void;
+  completeObservationSession: (actorId?: string) => void;
   startMissionFromSetup: (input: MissionSetupInput) => void;
   updateMissionOverview: (input: MissionOverviewEdit) => void;
   resetMissionOverview: () => void;
@@ -543,6 +558,133 @@ const createMissionStore = (storageName: string, seedBuilder: () => Mission): Mi
         setActiveActor: (actorId) => set({ activeActorId: actorId }),
 
         setSelectedRole: (role) => set({ selectedRole: role }),
+
+        startObservationSession: (input) => {
+          const at = input.at ?? new Date().toISOString();
+          const activeActorId = input.actorId ?? get().activeActorId;
+
+          set((state) => {
+            const currentWaterTemp = input.waterTempF ?? state.mission.conditions.waterTempF;
+            const conditions: EnvironmentalConditions = {
+              ...state.mission.conditions,
+              observedAt: at,
+              summary: input.weatherSummary ?? state.mission.conditions.summary,
+              airTempF: input.airTempF ?? state.mission.conditions.airTempF,
+              waterTempF: currentWaterTemp,
+              windKts: input.windKts ?? state.mission.conditions.windKts
+            };
+            const photoNumber = (state.mission.wowsaPhotos ?? []).length + 1;
+            const firstObservation: WowsaPhotoEntry = {
+              id: makeId('wowsa-observation', at),
+              number: photoNumber,
+              at,
+              actorId: activeActorId,
+              gps: input.gps,
+              lat: input.lat,
+              lon: input.lon,
+              gpsAccuracyM: input.gpsAccuracyM,
+              distanceSwum: '',
+              notes: 'Session started; swimmer photo pending.',
+              weatherSummary: conditions.summary,
+              airTempF: conditions.airTempF,
+              waterTempF: conditions.waterTempF,
+              windKts: conditions.windKts,
+              windDirection: input.windDirection,
+              feedCompleted: false,
+              eventTag: 'session-start',
+              hasPhoto: false,
+              evidenceStatus: input.gps ? 'needs-image' : 'needs-gps'
+            };
+            const event: TimelineEvent = {
+              id: makeId('event-observation-start', at),
+              type: 'note',
+              at,
+              actorId: activeActorId,
+              summary: 'Observation session started',
+              detail: 'First 30-minute observation entry created automatically.',
+              gps: input.gps,
+              lat: input.lat,
+              lon: input.lon,
+              gpsAccuracyM: input.gpsAccuracyM,
+              weatherSummary: conditions.summary,
+              airTempF: conditions.airTempF,
+              waterTempF: conditions.waterTempF,
+              windKts: conditions.windKts,
+              windDirection: input.windDirection,
+              severity: 'info'
+            };
+
+            return {
+              ...state,
+              mission: appendTimeline(
+                {
+                  ...state.mission,
+                  status: 'active',
+                  startedAt: at,
+                  lastFeedingAt: at,
+                  nextFeedingAt: addMinutes(new Date(at), state.mission.feedingIntervalMinutes).toISOString(),
+                  wowsaPhotoIntervalMinutes: 30,
+                  conditions,
+                  position:
+                    input.lat !== undefined && input.lon !== undefined
+                      ? {
+                          lat: input.lat,
+                          lon: input.lon,
+                          label: input.gps,
+                          updatedAt: at
+                        }
+                      : state.mission.position,
+                  wowsaPhotos: [firstObservation, ...(state.mission.wowsaPhotos ?? [])],
+                  expeditionCheckpoints:
+                    input.lat !== undefined && input.lon !== undefined
+                      ? [
+                          {
+                            id: makeId('checkpoint-observation-start', at),
+                            at,
+                            actorId: activeActorId,
+                            lat: input.lat,
+                            lon: input.lon,
+                            gps: input.gps,
+                            accuracyM: input.gpsAccuracyM,
+                            label: 'Observation session start',
+                            note: conditions.summary
+                          },
+                          ...(state.mission.expeditionCheckpoints ?? [])
+                        ]
+                      : state.mission.expeditionCheckpoints
+                },
+                event
+              ),
+              offlineQueue: queueIfOffline(state.online, state.offlineQueue, 'observation-session-start', firstObservation, at)
+            };
+          });
+        },
+
+        completeObservationSession: (actorId) => {
+          const at = new Date().toISOString();
+          const activeActorId = actorId ?? get().activeActorId;
+          const event: TimelineEvent = {
+            id: makeId('event-observation-complete', at),
+            type: 'note',
+            at,
+            actorId: activeActorId,
+            summary: 'Observation session completed',
+            detail: 'Official observation record closed for export and backup.',
+            severity: 'info'
+          };
+
+          set((state) => ({
+            ...state,
+            mission: appendTimeline(
+              {
+                ...state.mission,
+                status: 'completed'
+              },
+              event
+            ),
+            offlineQueue: queueIfOffline(state.online, state.offlineQueue, 'observation-session-complete', event, at)
+          }));
+        },
 
         startMissionFromSetup: (input) => {
           const requestedStart = new Date(input.startAt);
@@ -1590,9 +1732,12 @@ const createMissionStore = (storageName: string, seedBuilder: () => Mission): Mi
           const { at: _ignoredAt, actorId: _ignoredActor, ...rest } = input;
 
           set((state) => {
+            const openStarterObservation = (state.mission.wowsaPhotos ?? []).find(
+              (candidate) => candidate.eventTag === 'session-start' && !candidate.hasPhoto
+            );
             const photo: WowsaPhotoEntry = {
-              id: makeId('wowsa-photo', at),
-              number: (state.mission.wowsaPhotos ?? []).length + 1,
+              id: openStarterObservation?.id ?? makeId('wowsa-photo', at),
+              number: openStarterObservation?.number ?? (state.mission.wowsaPhotos ?? []).length + 1,
               at,
               actorId: activeActorId,
               evidenceStatus: input.gps && input.hasPhoto ? 'ready' : input.gps ? 'needs-image' : 'needs-gps',
@@ -1600,11 +1745,30 @@ const createMissionStore = (storageName: string, seedBuilder: () => Mission): Mi
             };
             const event: TimelineEvent = {
               id: makeId('event-wowsa', at),
-              type: 'note',
+              type: photo.feedCompleted ? 'feeding' : 'note',
               at,
               actorId: activeActorId,
-              summary: `WOWSA photo #${photo.number} logged`,
-              detail: `${photo.gps || 'GPS missing'}${photo.imageName ? ` · ${photo.imageName}` : ''}`,
+              summary: `Observation #${photo.number} logged`,
+              detail: [
+                photo.gps || 'GPS missing',
+                photo.weatherSummary,
+                photo.waterTempF !== undefined ? `Water ${photo.waterTempF}F` : undefined,
+                photo.windKts !== undefined ? `Wind ${photo.windKts} kt` : undefined,
+                photo.feedCompleted ? 'Feed completed' : undefined,
+                photo.notes,
+                photo.imageName
+              ]
+                .filter(Boolean)
+                .join(' · '),
+              gps: photo.gps,
+              lat: photo.lat,
+              lon: photo.lon,
+              gpsAccuracyM: photo.gpsAccuracyM,
+              weatherSummary: photo.weatherSummary,
+              airTempF: photo.airTempF,
+              waterTempF: photo.waterTempF,
+              windKts: photo.windKts,
+              windDirection: photo.windDirection,
               severity: photo.evidenceStatus === 'ready' ? 'info' : 'warning'
             };
 
@@ -1613,7 +1777,28 @@ const createMissionStore = (storageName: string, seedBuilder: () => Mission): Mi
               mission: appendTimeline(
                 {
                   ...state.mission,
-                  wowsaPhotos: [photo, ...(state.mission.wowsaPhotos ?? [])],
+                  conditions: {
+                    ...state.mission.conditions,
+                    observedAt: at,
+                    summary: photo.weatherSummary ?? state.mission.conditions.summary,
+                    airTempF: photo.airTempF ?? state.mission.conditions.airTempF,
+                    waterTempF: photo.waterTempF ?? state.mission.conditions.waterTempF,
+                    windKts: photo.windKts ?? state.mission.conditions.windKts
+                  },
+                  position:
+                    photo.lat !== undefined && photo.lon !== undefined
+                      ? {
+                          lat: photo.lat,
+                          lon: photo.lon,
+                          label: photo.gps,
+                          updatedAt: at
+                        }
+                      : state.mission.position,
+                  wowsaPhotos: openStarterObservation
+                    ? (state.mission.wowsaPhotos ?? []).map((candidate) =>
+                        candidate.id === openStarterObservation.id ? photo : candidate
+                      )
+                    : [photo, ...(state.mission.wowsaPhotos ?? [])],
                   expeditionCheckpoints:
                     photo.lat !== undefined && photo.lon !== undefined
                       ? [

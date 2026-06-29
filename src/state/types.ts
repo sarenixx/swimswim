@@ -5,6 +5,9 @@ export type CrewRole =
   | 'captain'
   | 'safety'
   | 'medical'
+  | 'first-mate'
+  | 'observer'
+  | 'land-support'
   | 'kayak-1'
   | 'kayak-2'
   | 'boat'
@@ -131,6 +134,15 @@ export interface TimelineEvent {
   actorId: string;
   summary: string;
   detail?: string;
+  gps?: string;
+  lat?: number;
+  lon?: number;
+  gpsAccuracyM?: number;
+  weatherSummary?: string;
+  airTempF?: number;
+  waterTempF?: number;
+  windKts?: number;
+  windDirection?: string;
   lateByMinutes?: number;
   severity?: Severity;
 }
@@ -337,6 +349,13 @@ export interface WowsaPhotoEntry {
   gpsAccuracyM?: number;
   distanceSwum: string;
   notes: string;
+  weatherSummary?: string;
+  airTempF?: number;
+  waterTempF?: number;
+  windKts?: number;
+  windDirection?: string;
+  feedCompleted?: boolean;
+  eventTag?: string;
   hasPhoto: boolean;
   imageName?: string;
   imageDataUrl?: string;

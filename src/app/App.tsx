@@ -3,7 +3,6 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Copy, Radio, RotateCcw, Wifi, WifiOff } from 'lucide-react';
 import logoUrl from '../assets/logo.webp';
 import { useMissionSync } from '../lib/sync/useMissionSync';
-import { roleLabels } from '../state/seed';
 import { createLiveStateFromTemplate, useLiveMissionStore, useMissionStore } from '../state/useMissionStore';
 import {
   buildMissionNavItems,
@@ -17,12 +16,8 @@ export function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const mission = useMissionStore((state) => state.mission);
-  const activeActorId = useMissionStore((state) => state.activeActorId);
-  const selectedRole = useMissionStore((state) => state.selectedRole);
   const online = useMissionStore((state) => state.online);
   const offlineQueue = useMissionStore((state) => state.offlineQueue);
-  const setActiveActor = useMissionStore((state) => state.setActiveActor);
-  const setSelectedRole = useMissionStore((state) => state.setSelectedRole);
   const setOnlineStatus = useMissionStore((state) => state.setOnlineStatus);
   const resetMission = useMissionStore((state) => state.resetMission);
   const navItems = buildMissionNavItems(mission.mode);
@@ -86,34 +81,6 @@ export function AppShell() {
             </NavLink>
           ))}
         </nav>
-
-        <div className="sidebar-footer">
-          <label className="field-label">
-            Active role
-            <select
-              className="select"
-              value={selectedRole}
-              onChange={(event) => setSelectedRole(event.target.value as typeof selectedRole)}
-            >
-              {Object.entries(roleLabels).map(([role, label]) => (
-                <option key={role} value={role}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="field-label">
-            Acting as
-            <select className="select" value={activeActorId} onChange={(event) => setActiveActor(event.target.value)}>
-              {mission.crew.map((member) => (
-                <option key={member.id} value={member.id}>
-                  {member.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
       </aside>
 
       <main className="main-frame">

@@ -1,106 +1,309 @@
-import { Camera, CheckCircle2, Handshake, Image as ImageIcon, Mail, MapPin, Plus, Timer, Trash2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import logoUrl from '../../assets/logo.webp';
-import { formatGpsLabel, getDevicePosition, parseGpsLabel } from '../../lib/gps';
 import {
-  buildRouteCsv,
-  buildWowsaEvidenceManifest,
+  Camera,
+  CheckCircle2,
+  CloudSun,
+  Database,
+  FileDown,
+  Image as ImageIcon,
+  Mail,
+  MapPin,
+  Plus,
+  Timer,
+  Trash2,
+  Utensils,
+  Waves,
+} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  formatGpsLabel,
+  getDevicePosition,
+  parseGpsLabel,
+} from "../../lib/gps";
+import {
+  enableObservationPushReminders,
+  updateObservationPushReminder,
+} from "../../lib/pushReminders";
+import {
   buildWowsaReport,
   getWowsaEvidenceChecks,
-  mailtoHref
-} from '../../lib/reports';
-import { deleteEvidenceImage, getEvidenceImage, makeEvidenceImageKey, saveEvidenceImage } from '../../lib/storage/evidenceStore';
+  mailtoHref,
+} from "../../lib/reports";
 import {
+  deleteEvidenceImage,
+  getEvidenceImage,
+  makeEvidenceImageKey,
+  saveEvidenceImage,
+} from "../../lib/storage/evidenceStore";
+import {
+  backupMissionSnapshot,
   getEvidenceImageUrl,
   getSyncMissionId,
   isRemoteSyncAvailable,
   removeEvidenceImage as removeRemoteEvidenceImage,
-  uploadEvidenceImage
-} from '../../lib/sync/supabaseClient';
-import { useNow } from '../../lib/useNow';
-import { formatClock, getCrewLabel, getWowsaNextDueAt } from '../../state/selectors';
-import { useMissionStore } from '../../state/useMissionStore';
+  uploadEvidenceImage,
+} from "../../lib/sync/supabaseClient";
+import { getCurrentWeather, type CapturedWeather } from "../../lib/weather";
+import { useNow } from "../../lib/useNow";
+import {
+  formatClock,
+  getCrewLabel,
+  getElapsedLabel,
+  getWowsaNextDueAt,
+} from "../../state/selectors";
+import type { Mission, TimelineEventType } from "../../state/types";
+import { useMissionStore } from "../../state/useMissionStore";
+
+interface WakeLockSentinel {
+  released: boolean;
+  release: () => Promise<void>;
+  addEventListener: (type: "release", listener: () => void) => void;
+  removeEventListener: (type: "release", listener: () => void) => void;
+}
+
+interface WakeLockCapableNavigator {
+  wakeLock?: {
+    request: (type: "screen") => Promise<WakeLockSentinel>;
+  };
+}
 
 interface PhotoDraft {
   gps: string;
   lat?: number;
   lon?: number;
+  gpsAccuracyM?: number;
   latText: string;
   lonText: string;
-  gpsAccuracyM?: number;
-  distanceSwum: string;
+  weatherSummary: string;
+  airTempF: string;
+  waterTempF: string;
+  windKts: string;
+  windDirection: string;
   notes: string;
-  hasPhoto: boolean;
+  feedCompleted: boolean;
+  eventTag: string;
   imageName: string;
   imageFile?: File;
   imagePreviewUrl: string;
 }
 
-const emptyPhotoDraft = (): PhotoDraft => ({
-  gps: '',
+const observationEmail = "swimcalifornia2026@gmail.com";
+
+const quickEvents: Array<{
+  label: string;
+  type: TimelineEventType;
+  detail: string;
+}> = [
+  {
+    label: "Feed completed",
+    type: "feeding",
+    detail: "Feed completed between scheduled observations.",
+  },
+  {
+    label: "Saw dolphin",
+    type: "note",
+    detail: "Dolphin sighting logged near swimmer.",
+  },
+  {
+    label: "Increased chop",
+    type: "weather",
+    detail: "Sea state changed; observer noted increased chop.",
+  },
+  {
+    label: "Equipment adjustment",
+    type: "note",
+    detail: "Swimmer or crew equipment adjusted.",
+  },
+];
+
+const emptyPhotoDraft = (missionWaterTemp?: number): PhotoDraft => ({
+  gps: "",
   lat: undefined,
   lon: undefined,
-  latText: '',
-  lonText: '',
   gpsAccuracyM: undefined,
-  distanceSwum: '',
-  notes: '',
-  hasPhoto: false,
-  imageName: '',
+  latText: "",
+  lonText: "",
+  weatherSummary: "",
+  airTempF: "",
+  waterTempF: missionWaterTemp !== undefined ? String(missionWaterTemp) : "",
+  windKts: "",
+  windDirection: "",
+  notes: "",
+  feedCompleted: false,
+  eventTag: "",
+  imageName: "",
   imageFile: undefined,
-  imagePreviewUrl: ''
+  imagePreviewUrl: "",
 });
 
-function formatDueLabel(secondsUntil: number) {
+function formatTimer(secondsUntil: number) {
   const absoluteSeconds = Math.abs(secondsUntil);
   const minutes = Math.floor(absoluteSeconds / 60);
   const seconds = absoluteSeconds % 60;
-  const clock = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-  return secondsUntil < 0 ? `Overdue ${clock}` : clock;
+  const label = `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+  return secondsUntil < 0 ? `Overdue ${label}` : label;
 }
 
-function numberFromCoordinate(value: string, min: number, max: number) {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return undefined;
-  }
+function numberOrUndefined(value: string) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
 
-  const parsed = Number(trimmed);
-  return Number.isFinite(parsed) && parsed >= min && parsed <= max ? parsed : undefined;
+function coordinateFromText(value: string, min: number, max: number) {
+  const parsed = numberOrUndefined(value.trim());
+  return parsed !== undefined && parsed >= min && parsed <= max
+    ? parsed
+    : undefined;
+}
+
+function fallbackWeather(mission: Mission): CapturedWeather {
+  return {
+    summary: mission.conditions.summary,
+    airTempF: mission.conditions.airTempF,
+    windKts: mission.conditions.windKts,
+  };
+}
+
+function addMinutesIso(isoTime: string, minutes: number) {
+  return new Date(
+    new Date(isoTime).getTime() + minutes * 60 * 1000,
+  ).toISOString();
+}
+
+function getWakeLockNavigator() {
+  return navigator as unknown as WakeLockCapableNavigator;
 }
 
 export function PartnersMedia() {
+  const now = useNow(1000);
   const mission = useMissionStore((state) => state.mission);
   const activeActorId = useMissionStore((state) => state.activeActorId);
-  const completePartnerTask = useMissionStore((state) => state.completePartnerTask);
+  const startObservationSession = useMissionStore(
+    (state) => state.startObservationSession,
+  );
+  const completeObservationSession = useMissionStore(
+    (state) => state.completeObservationSession,
+  );
   const addWowsaPhoto = useMissionStore((state) => state.addWowsaPhoto);
   const removeWowsaPhoto = useMissionStore((state) => state.removeWowsaPhoto);
-  const now = useNow(1000);
-  const [photoDraft, setPhotoDraft] = useState<PhotoDraft>(() => emptyPhotoDraft());
-  const [gpsStatus, setGpsStatus] = useState('');
-  const [storageStatus, setStorageStatus] = useState('');
+  const logEvent = useMissionStore((state) => state.logEvent);
+  const [photoDraft, setPhotoDraft] = useState<PhotoDraft>(() =>
+    emptyPhotoDraft(mission.conditions.waterTempF),
+  );
+  const [gpsStatus, setGpsStatus] = useState("");
+  const [weatherStatus, setWeatherStatus] = useState("");
+  const [storageStatus, setStorageStatus] = useState("");
+  const [backupStatus, setBackupStatus] = useState("");
+  const [wakeLockStatus, setWakeLockStatus] = useState("Session timer ready.");
+  const [pushReminderStatus, setPushReminderStatus] = useState(
+    "Sleep reminders ready.",
+  );
   const [isSavingEvidence, setIsSavingEvidence] = useState(false);
-  const [storedImageUrls, setStoredImageUrls] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    if (window.location.hash !== '#wowsa-capture') {
-      return;
-    }
-
-    window.requestAnimationFrame(() => {
-      document.getElementById('wowsa-capture')?.scrollIntoView({ block: 'start' });
-    });
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (photoDraft.imagePreviewUrl) {
-        URL.revokeObjectURL(photoDraft.imagePreviewUrl);
-      }
-    };
-  }, [photoDraft.imagePreviewUrl]);
+  const [storedImageUrls, setStoredImageUrls] = useState<
+    Record<string, string>
+  >({});
 
   const wowsaPhotos = mission.wowsaPhotos ?? [];
+  const sortedPhotos = useMemo(
+    () =>
+      [...wowsaPhotos].sort(
+        (a, b) => new Date(a.at).getTime() - new Date(b.at).getTime(),
+      ),
+    [wowsaPhotos],
+  );
+  const manualEvents = useMemo(
+    () =>
+      [...mission.timeline]
+        .filter((event) => !event.summary.startsWith("Observation #"))
+        .sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime()),
+    [mission.timeline],
+  );
+  const timelineItems = useMemo(
+    () =>
+      [
+        ...sortedPhotos.map((photo) => ({
+          kind: "observation" as const,
+          at: photo.at,
+          photo,
+        })),
+        ...manualEvents.map((event) => ({
+          kind: "event" as const,
+          at: event.at,
+          event,
+        })),
+      ].sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime()),
+    [manualEvents, sortedPhotos],
+  );
+  const nextDueAt = getWowsaNextDueAt(mission);
+  const secondsUntilNext = Math.floor(
+    (new Date(nextDueAt).getTime() - now.getTime()) / 1000,
+  );
+  const readyCount = wowsaPhotos.filter(
+    (photo) => photo.evidenceStatus === "ready",
+  ).length;
+  const activeSession = mission.status === "active";
+
+  useEffect(() => {
+    if (!activeSession) {
+      setWakeLockStatus("Session timer ready.");
+      return undefined;
+    }
+
+    let cancelled = false;
+    let sentinel: WakeLockSentinel | undefined;
+    const wakeNavigator = getWakeLockNavigator();
+
+    const releaseListener = () => {
+      if (!cancelled) {
+        setWakeLockStatus(
+          "Screen wake lock released. Timer will recover when the page is visible.",
+        );
+      }
+    };
+
+    async function requestWakeLock() {
+      if (!wakeNavigator.wakeLock) {
+        setWakeLockStatus(
+          "Long session active. On-screen timer resumes when visible.",
+        );
+        return;
+      }
+
+      try {
+        sentinel = await wakeNavigator.wakeLock.request("screen");
+        sentinel.addEventListener("release", releaseListener);
+        if (!cancelled) {
+          setWakeLockStatus("Long session active. Screen wake lock is on.");
+        }
+      } catch {
+        if (!cancelled) {
+          setWakeLockStatus(
+            "Long session active. On-screen timer resumes when visible.",
+          );
+        }
+      }
+    }
+
+    const handleVisibilityChange = () => {
+      if (
+        document.visibilityState === "visible" &&
+        (!sentinel || sentinel.released)
+      ) {
+        requestWakeLock();
+      }
+    };
+
+    requestWakeLock();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      if (sentinel) {
+        sentinel.removeEventListener("release", releaseListener);
+        sentinel.release().catch(() => undefined);
+      }
+    };
+  }, [activeSession]);
 
   useEffect(() => {
     let cancelled = false;
@@ -115,23 +318,19 @@ export function PartnersMedia() {
             return;
           }
 
-          try {
-            const remoteUrl = await getEvidenceImageUrl(photo.imageStorageKey);
-            if (remoteUrl) {
-              nextUrls[photo.id] = remoteUrl;
-              return;
-            }
-
-            const stored = await getEvidenceImage(photo.imageStorageKey);
-            if (stored?.blob) {
-              const url = URL.createObjectURL(stored.blob);
-              urlsToRevoke.push(url);
-              nextUrls[photo.id] = url;
-            }
-          } catch {
-            nextUrls[photo.id] = '';
+          const remoteUrl = await getEvidenceImageUrl(photo.imageStorageKey);
+          if (remoteUrl) {
+            nextUrls[photo.id] = remoteUrl;
+            return;
           }
-        })
+
+          const stored = await getEvidenceImage(photo.imageStorageKey);
+          if (stored?.blob) {
+            const url = URL.createObjectURL(stored.blob);
+            urlsToRevoke.push(url);
+            nextUrls[photo.id] = url;
+          }
+        }),
       );
 
       if (!cancelled) {
@@ -139,7 +338,7 @@ export function PartnersMedia() {
       }
     }
 
-    loadStoredImages();
+    loadStoredImages().catch(() => setStoredImageUrls({}));
 
     return () => {
       cancelled = true;
@@ -147,124 +346,126 @@ export function PartnersMedia() {
     };
   }, [wowsaPhotos]);
 
-  const nextWowsaDueAt = getWowsaNextDueAt(mission);
-  const secondsUntilNextPhoto = Math.floor((new Date(nextWowsaDueAt).getTime() - now.getTime()) / 1000);
-  const timerLabel = formatDueLabel(secondsUntilNextPhoto);
+  useEffect(() => {
+    return () => {
+      if (photoDraft.imagePreviewUrl) {
+        URL.revokeObjectURL(photoDraft.imagePreviewUrl);
+      }
+    };
+  }, [photoDraft.imagePreviewUrl]);
 
   const resetDraft = () => {
     if (photoDraft.imagePreviewUrl) {
       URL.revokeObjectURL(photoDraft.imagePreviewUrl);
     }
-    setPhotoDraft(emptyPhotoDraft());
+    setPhotoDraft(emptyPhotoDraft(mission.conditions.waterTempF));
   };
 
-  const getDraftCoordinates = (draft: PhotoDraft) => {
-    const lat = draft.lat;
-    const lon = draft.lon;
-
-    return lat !== undefined && lon !== undefined
-      ? {
-          lat,
-          lon,
-          gps: formatGpsLabel(lat, lon),
-          gpsAccuracyM: draft.gpsAccuracyM
-        }
-      : undefined;
+  const capturePosition = async () => {
+    setGpsStatus("Capturing GPS...");
+    try {
+      const position = await getDevicePosition();
+      setGpsStatus(
+        `GPS captured${position.accuracyM ? ` +/- ${Math.round(position.accuracyM)}m` : ""}`,
+      );
+      return position;
+    } catch (error) {
+      setGpsStatus(
+        error instanceof Error
+          ? error.message
+          : "GPS unavailable; using last known support position.",
+      );
+      return {
+        lat: mission.position.lat,
+        lon: mission.position.lon,
+        label: mission.position.label,
+        accuracyM: undefined,
+      };
+    }
   };
 
-  const applyDevicePosition = async (statusLabel: string) => {
-    setGpsStatus(statusLabel);
-    const position = await getDevicePosition();
+  const captureWeather = async (lat: number, lon: number) => {
+    setWeatherStatus("Checking weather...");
+    try {
+      const weather = await getCurrentWeather(lat, lon);
+      setWeatherStatus("Weather captured");
+      return weather;
+    } catch (error) {
+      setWeatherStatus(
+        error instanceof Error
+          ? error.message
+          : "Weather unavailable; using last recorded conditions.",
+      );
+      return fallbackWeather(mission);
+    }
+  };
+
+  const updateDraftFromContext = async () => {
+    const position = await capturePosition();
+    const weather = await captureWeather(position.lat, position.lon);
     setPhotoDraft((draft) => ({
       ...draft,
       gps: position.label,
       lat: position.lat,
       lon: position.lon,
+      gpsAccuracyM: position.accuracyM,
       latText: String(position.lat),
       lonText: String(position.lon),
-      gpsAccuracyM: position.accuracyM
+      weatherSummary: weather.summary,
+      airTempF:
+        weather.airTempF !== undefined
+          ? String(Math.round(weather.airTempF))
+          : draft.airTempF,
+      windKts:
+        weather.windKts !== undefined
+          ? String(Math.round(weather.windKts))
+          : draft.windKts,
+      windDirection: weather.windDirection ?? draft.windDirection,
     }));
-    setGpsStatus(`GPS captured ${position.accuracyM ? `±${Math.round(position.accuracyM)}m` : ''}`);
-    return position;
+    return { position, weather };
   };
 
-  const logPhoto = async () => {
+  const startSession = async () => {
+    setStorageStatus("Starting observation session...");
+    setPushReminderStatus("Preparing sleep reminders...");
     const at = new Date().toISOString();
-    let imageStorageKey: string | undefined;
-    let imageSizeBytes: number | undefined;
-
-    if (!photoDraft.imageFile) {
-      setStorageStatus('Add or take a photo before saving WOWSA evidence.');
-      return;
-    }
-
-    setIsSavingEvidence(true);
-    setStorageStatus('Checking GPS before save...');
-
-    try {
-      let coordinates = getDraftCoordinates(photoDraft);
-
-      if (!coordinates) {
-        try {
-          const position = await applyDevicePosition('Capturing GPS before save...');
-          coordinates = {
-            lat: position.lat,
-            lon: position.lon,
-            gps: position.label,
-            gpsAccuracyM: position.accuracyM
-          };
-        } catch (error) {
-          setGpsStatus(error instanceof Error ? error.message : 'GPS capture failed.');
-          setStorageStatus('GPS coordinates are required before saving. Allow location access or enter coordinates manually.');
-          return;
-        }
-      }
-
-      imageStorageKey = makeEvidenceImageKey(getSyncMissionId(mission), at, photoDraft.imageFile.name);
-      if (isRemoteSyncAvailable()) {
-        await uploadEvidenceImage(imageStorageKey, photoDraft.imageFile);
-      } else {
-        await saveEvidenceImage(imageStorageKey, photoDraft.imageFile);
-      }
-      imageSizeBytes = photoDraft.imageFile.size;
-
-      addWowsaPhoto({
-        at,
-        gps: coordinates.gps,
-        lat: coordinates.lat,
-        lon: coordinates.lon,
-        gpsAccuracyM: coordinates.gpsAccuracyM,
-        distanceSwum: photoDraft.distanceSwum,
-        notes: photoDraft.notes,
-        hasPhoto: photoDraft.hasPhoto,
-        imageName: photoDraft.imageName,
-        imageStorageKey,
-        imageSizeBytes,
-        actorId: activeActorId
-      });
-      setStorageStatus(
-        imageStorageKey
-          ? isRemoteSyncAvailable()
-            ? 'Evidence saved to SQL sync with storage image.'
-            : 'Evidence saved locally with image.'
-          : isRemoteSyncAvailable()
-            ? 'Evidence record saved to SQL sync.'
-            : 'Evidence record saved locally.'
+    const intervalMinutes = 30;
+    const reminderSession = {
+      missionId: getSyncMissionId(mission),
+      title: mission.name,
+      intervalMinutes,
+      startedAt: at,
+      nextDueAt: addMinutesIso(at, intervalMinutes),
+      status: "active" as const,
+    };
+    const reminderPromise = enableObservationPushReminders(reminderSession)
+      .then((result) => setPushReminderStatus(result.message))
+      .catch((error) =>
+        setPushReminderStatus(
+          error instanceof Error
+            ? error.message
+            : "Sleep reminders unavailable.",
+        ),
       );
-      resetDraft();
-    } catch (error) {
-      setStorageStatus(error instanceof Error ? error.message : 'Could not save evidence locally.');
-    } finally {
-      setIsSavingEvidence(false);
-    }
-  };
-
-  const capturePhotoGps = async () => {
-    try {
-      await applyDevicePosition('Capturing GPS...');
-    } catch (error) {
-      setGpsStatus(error instanceof Error ? error.message : 'GPS capture failed.');
-    }
+    const position = await capturePosition();
+    const weather = await captureWeather(position.lat, position.lon);
+    startObservationSession({
+      at,
+      gps: position.label,
+      lat: position.lat,
+      lon: position.lon,
+      gpsAccuracyM: position.accuracyM,
+      weatherSummary: weather.summary,
+      airTempF: weather.airTempF,
+      waterTempF: mission.conditions.waterTempF,
+      windKts: weather.windKts,
+      windDirection: weather.windDirection,
+      actorId: activeActorId,
+    });
+    setStorageStatus(
+      "Session started. First observation is ready for swimmer photo.",
+    );
+    await reminderPromise;
   };
 
   const handlePhotoFile = (file?: File) => {
@@ -272,336 +473,756 @@ export function PartnersMedia() {
       return;
     }
 
-    const imagePreviewUrl = URL.createObjectURL(file);
+    if (photoDraft.imagePreviewUrl) {
+      URL.revokeObjectURL(photoDraft.imagePreviewUrl);
+    }
+
     setPhotoDraft((draft) => ({
       ...draft,
-      imagePreviewUrl,
       imageFile: file,
-      hasPhoto: true,
-      imageName: file.name
+      imageName: file.name,
+      imagePreviewUrl: URL.createObjectURL(file),
     }));
-    setStorageStatus('Image ready for local save.');
+    setStorageStatus("Photo ready.");
+    updateDraftFromContext().catch(() => undefined);
+  };
 
-    if (!getDraftCoordinates(photoDraft)) {
-      applyDevicePosition('Capturing GPS for selected photo...').catch((error) => {
-        setGpsStatus(error instanceof Error ? error.message : 'GPS capture failed. Enter coordinates manually as backup.');
+  const saveObservation = async () => {
+    if (!photoDraft.imageFile) {
+      setStorageStatus("Take or attach a swimmer photo first.");
+      return;
+    }
+
+    setIsSavingEvidence(true);
+    setStorageStatus("Saving observation...");
+
+    try {
+      const at = new Date().toISOString();
+      let lat = photoDraft.lat;
+      let lon = photoDraft.lon;
+      let gps = photoDraft.gps;
+      let gpsAccuracyM = photoDraft.gpsAccuracyM;
+      let weather: CapturedWeather = {
+        summary: photoDraft.weatherSummary || mission.conditions.summary,
+        airTempF:
+          numberOrUndefined(photoDraft.airTempF) ?? mission.conditions.airTempF,
+        windKts:
+          numberOrUndefined(photoDraft.windKts) ?? mission.conditions.windKts,
+        windDirection: photoDraft.windDirection || undefined,
+      };
+
+      if (lat === undefined || lon === undefined || !gps) {
+        const context = await updateDraftFromContext();
+        lat = context.position.lat;
+        lon = context.position.lon;
+        gps = context.position.label;
+        gpsAccuracyM = context.position.accuracyM;
+        weather = context.weather;
+      }
+
+      const imageStorageKey = makeEvidenceImageKey(
+        getSyncMissionId(mission),
+        at,
+        photoDraft.imageFile.name,
+      );
+      if (isRemoteSyncAvailable()) {
+        await uploadEvidenceImage(imageStorageKey, photoDraft.imageFile);
+      } else {
+        await saveEvidenceImage(imageStorageKey, photoDraft.imageFile);
+      }
+
+      addWowsaPhoto({
+        at,
+        gps,
+        lat,
+        lon,
+        gpsAccuracyM,
+        distanceSwum: "",
+        notes: photoDraft.notes.trim(),
+        weatherSummary: weather.summary,
+        airTempF: weather.airTempF,
+        waterTempF:
+          numberOrUndefined(photoDraft.waterTempF) ??
+          mission.conditions.waterTempF,
+        windKts: weather.windKts,
+        windDirection: weather.windDirection,
+        feedCompleted: photoDraft.feedCompleted,
+        eventTag: photoDraft.eventTag.trim(),
+        hasPhoto: true,
+        imageName: photoDraft.imageFile.name,
+        imageStorageKey,
+        imageSizeBytes: photoDraft.imageFile.size,
+        actorId: activeActorId,
       });
+      updateObservationPushReminder({
+        missionId: getSyncMissionId(mission),
+        title: mission.name,
+        intervalMinutes: mission.wowsaPhotoIntervalMinutes || 30,
+        startedAt: mission.startedAt,
+        nextDueAt: addMinutesIso(at, mission.wowsaPhotoIntervalMinutes || 30),
+        status: "active",
+      })
+        .then((result) => setPushReminderStatus(result.message))
+        .catch((error) =>
+          setPushReminderStatus(
+            error instanceof Error
+              ? error.message
+              : "Sleep reminders not updated.",
+          ),
+        );
+      setStorageStatus(
+        isRemoteSyncAvailable()
+          ? "Observation saved to Supabase storage."
+          : "Observation saved on this device.",
+      );
+      resetDraft();
+    } catch (error) {
+      setStorageStatus(
+        error instanceof Error
+          ? error.message
+          : "Observation could not be saved.",
+      );
+    } finally {
+      setIsSavingEvidence(false);
     }
   };
 
-  const handleRemovePhoto = async (photoId: string, imageStorageKey?: string) => {
+  const addQuickEvent = async (
+    label: string,
+    type: TimelineEventType,
+    detail: string,
+  ) => {
+    const position = await capturePosition();
+    const weather = await captureWeather(position.lat, position.lon);
+    logEvent({
+      type,
+      actorId: activeActorId,
+      summary: label,
+      detail,
+      gps: position.label,
+      lat: position.lat,
+      lon: position.lon,
+      gpsAccuracyM: position.accuracyM,
+      weatherSummary: weather.summary,
+      airTempF: weather.airTempF,
+      waterTempF: mission.conditions.waterTempF,
+      windKts: weather.windKts,
+      windDirection: weather.windDirection,
+      severity: type === "weather" ? "warning" : "info",
+    });
+  };
+
+  const handleRemovePhoto = async (
+    photoId: string,
+    imageStorageKey?: string,
+  ) => {
     if (imageStorageKey) {
-      try {
-        if (isRemoteSyncAvailable()) {
-          await removeRemoteEvidenceImage(imageStorageKey);
-        } else {
-          await deleteEvidenceImage(imageStorageKey);
-        }
-      } catch {
-        setStorageStatus('Removed record. Could not remove cached image.');
+      if (isRemoteSyncAvailable()) {
+        await removeRemoteEvidenceImage(imageStorageKey);
+      } else {
+        await deleteEvidenceImage(imageStorageKey);
       }
     }
 
     removeWowsaPhoto(photoId);
   };
 
-  const reportDate = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  const draftCoordinates = getDraftCoordinates(photoDraft);
-  const canSaveEvidence = Boolean(photoDraft.imageFile && draftCoordinates && !isSavingEvidence);
-  const evidenceManifestHref = `data:application/json;charset=utf-8,${encodeURIComponent(buildWowsaEvidenceManifest(mission))}`;
-  const routeCsvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(buildRouteCsv(mission))}`;
-  const reportEmail = mission.session.operationsEmail || 'operations@example.com';
-  const reportPrefix = mission.mode === 'template' ? 'Endurance Swim Template' : 'Swim California';
-  const routeCsvName = mission.mode === 'template' ? 'expedition-route-template.csv' : 'swim-route-checkpoints.csv';
+  const observationRecord = {
+    generatedAt: new Date().toISOString(),
+    recordType: "wowsa-observation-record",
+    mission: {
+      id: mission.id,
+      name: mission.name,
+      status: mission.status,
+      swimmer: mission.session.swimmerName,
+      location: mission.session.location,
+      startedAt: mission.startedAt,
+      observerIntervalMinutes: mission.wowsaPhotoIntervalMinutes,
+      primaryVessel: mission.session.primaryVessel,
+      supportVessels: mission.session.supportVessels,
+      operationsEmail: mission.session.operationsEmail || observationEmail,
+    },
+    crew: mission.crew,
+    observations: sortedPhotos,
+    timeline: timelineItems,
+    gpsHistory: mission.expeditionCheckpoints ?? [],
+    weatherHistory: sortedPhotos.map((photo) => ({
+      at: photo.at,
+      gps: photo.gps,
+      weatherSummary: photo.weatherSummary,
+      airTempF: photo.airTempF,
+      waterTempF: photo.waterTempF,
+      windKts: photo.windKts,
+      windDirection: photo.windDirection,
+    })),
+    manualEvents,
+  };
+  const observationJson = JSON.stringify(observationRecord, null, 2);
+  const observationJsonHref = `data:application/json;charset=utf-8,${encodeURIComponent(observationJson)}`;
+
+  const backupAndClose = async () => {
+    completeObservationSession(activeActorId);
+    setBackupStatus("Closing record...");
+    updateObservationPushReminder({
+      missionId: getSyncMissionId(mission),
+      title: mission.name,
+      intervalMinutes: mission.wowsaPhotoIntervalMinutes || 30,
+      startedAt: mission.startedAt,
+      status: "completed",
+    })
+      .then((result) => setPushReminderStatus(result.message))
+      .catch((error) =>
+        setPushReminderStatus(
+          error instanceof Error
+            ? error.message
+            : "Sleep reminders not stopped.",
+        ),
+      );
+
+    try {
+      if (isRemoteSyncAvailable()) {
+        await backupMissionSnapshot({ ...mission, status: "completed" });
+        setBackupStatus("Supabase backup saved.");
+      } else {
+        setBackupStatus("Supabase is not configured; email backup prepared.");
+      }
+    } catch (error) {
+      setBackupStatus(
+        error instanceof Error
+          ? error.message
+          : "Supabase backup failed; email backup prepared.",
+      );
+    }
+
+    if (import.meta.env.MODE !== "test") {
+      window.location.href = mailtoHref(
+        mission.session.operationsEmail || observationEmail,
+        `${mission.name} - WOWSA Observation Record - ${new Date().toLocaleDateString("en-US")}`,
+        buildWowsaReport(mission),
+      );
+    }
+  };
 
   return (
-    <div className="page-grid">
-      <section className="panel span-4">
-        <div className="panel-header">
-          <div>
-            <h3 className="panel-title">WOWSA Evidence Summary</h3>
-            <p className="panel-subtitle">{wowsaPhotos.length} GPS photo records logged.</p>
-          </div>
-          <Camera aria-hidden="true" />
+    <div className="observation-console">
+      <section
+        className={`observation-hero ${activeSession ? "active" : "ready"}`}
+      >
+        <div>
+          <p className="page-kicker">WOWSA Observation Log</p>
+          <h3 className="observation-hero-title">
+            {activeSession
+              ? `${formatTimer(secondsUntilNext)} to next photo`
+              : "Start official observation session"}
+          </h3>
+          <p className="observation-hero-meta">
+            {activeSession
+              ? `Started ${formatClock(mission.startedAt)} - elapsed ${getElapsedLabel(mission, now)} - next due ${formatClock(nextDueAt)}`
+              : "One tap records time, GPS, weather, and opens the first 30-minute observation."}
+          </p>
+          {activeSession ? (
+            <p className="observation-hero-meta long-session-status">
+              {wakeLockStatus}
+            </p>
+          ) : null}
+          {activeSession ? (
+            <p className="observation-hero-meta long-session-status">
+              Sleep reminders: {pushReminderStatus}
+            </p>
+          ) : null}
         </div>
-        <div className="metric-grid">
-          <div className="metric">
-            <span className="metric-label">Ready Evidence</span>
-            <span className="metric-value">{wowsaPhotos.filter((photo) => photo.evidenceStatus === 'ready').length}</span>
-            <span className="metric-note">Image + GPS</span>
-          </div>
-          <div className="metric">
-            <span className="metric-label">Needs Review</span>
-            <span className="metric-value">{wowsaPhotos.filter((photo) => photo.evidenceStatus !== 'ready').length}</span>
-            <span className="metric-note">Missing image or GPS</span>
-          </div>
-        </div>
-        <img className="logo-watermark" src={logoUrl} alt={reportPrefix} style={{ marginTop: 16 }} />
-      </section>
-
-      <section className="panel span-8" id="wowsa-capture">
-        <div className="panel-header">
-          <div>
-            <h3 className="panel-title">WOWSA GPS Photo Evidence</h3>
-            <p className="panel-subtitle">Save photo, GPS, timestamp, and distance evidence locally on this device.</p>
-          </div>
-          <Timer aria-hidden="true" />
-        </div>
-        <div className={`critical-action compact ${secondsUntilNextPhoto <= 0 ? 'critical' : secondsUntilNextPhoto <= 120 ? 'warning' : 'normal'}`} style={{ marginBottom: 16 }}>
-          <p className="page-kicker">Next GPS Photo</p>
-          <h3 className="critical-title">{timerLabel}</h3>
-          <p className="critical-detail">Due at {formatClock(nextWowsaDueAt)} based on the last saved WOWSA photo.</p>
-          <div className="critical-meta">
-            <button className="button primary" type="button" onClick={capturePhotoGps}>
-              <MapPin aria-hidden="true" />
-              Capture GPS coordinates
+        <div className="observation-hero-actions">
+          {!activeSession ? (
+            <button
+              className="button primary observation-start-button"
+              type="button"
+              onClick={startSession}
+            >
+              <Timer aria-hidden="true" />
+              Start Session
             </button>
-          </div>
+          ) : (
+            <label className="button primary observation-start-button">
+              <Camera aria-hidden="true" />
+              Capture Swimmer Photo
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="visually-hidden-input"
+                aria-label="Capture swimmer photo"
+                onChange={(event) => handlePhotoFile(event.target.files?.[0])}
+              />
+            </label>
+          )}
         </div>
-        <div className="two-column-form">
-          <label className="field-label">
-            Photo GPS
-            <input
-              className="input"
-              value={photoDraft.gps}
-              onChange={(event) => {
-                const parsed = parseGpsLabel(event.target.value);
-                setPhotoDraft((draft) => ({
-                  ...draft,
-                  gps: event.target.value,
-                  lat: parsed?.lat,
-                  lon: parsed?.lon,
-                  latText: parsed ? String(parsed.lat) : '',
-                  lonText: parsed ? String(parsed.lon) : '',
-                  gpsAccuracyM: parsed ? draft.gpsAccuracyM : undefined
-                }));
-              }}
-              placeholder={mission.position.label}
-            />
-          </label>
-          <label className="field-label">
-            Cumulative distance
-            <input
-              className="input"
-              value={photoDraft.distanceSwum}
-              onChange={(event) => setPhotoDraft((draft) => ({ ...draft, distanceSwum: event.target.value }))}
-              placeholder="4.2 miles"
-            />
-          </label>
-          <label className="field-label">
-            GPS accuracy
-            <input className="input" value={photoDraft.gpsAccuracyM ? `±${Math.round(photoDraft.gpsAccuracyM)}m` : ''} readOnly placeholder="Capture GPS to fill accuracy" />
-          </label>
-          <label className="field-label">
-            Local image
-            <input className="input" value={photoDraft.imageName} readOnly placeholder="Take or attach a photo" />
-          </label>
-        </div>
-        <div className="two-column-form" style={{ marginTop: 12 }}>
-          <label className="field-label">
-            Latitude
-            <input
-              className="input"
-              inputMode="decimal"
-              value={photoDraft.latText}
-              onChange={(event) => {
-                const lat = numberFromCoordinate(event.target.value, -90, 90);
-                setPhotoDraft((draft) => ({
-                  ...draft,
-                  latText: event.target.value,
-                  lat,
-                  gps: lat !== undefined && draft.lon !== undefined ? formatGpsLabel(lat, draft.lon) : '',
-                  gpsAccuracyM: undefined
-                }));
-              }}
-              placeholder="33.71000"
-            />
-          </label>
-          <label className="field-label">
-            Longitude
-            <input
-              className="input"
-              inputMode="decimal"
-              value={photoDraft.lonText}
-              onChange={(event) => {
-                const lon = numberFromCoordinate(event.target.value, -180, 180);
-                setPhotoDraft((draft) => ({
-                  ...draft,
-                  lonText: event.target.value,
-                  lon,
-                  gps: draft.lat !== undefined && lon !== undefined ? formatGpsLabel(draft.lat, lon) : '',
-                  gpsAccuracyM: undefined
-                }));
-              }}
-              placeholder="-118.28000"
-            />
-          </label>
-        </div>
-        <div className="row-actions" style={{ marginTop: 12 }}>
-          <button className="button primary" type="button" onClick={capturePhotoGps}>
-            <MapPin aria-hidden="true" />
-            Capture GPS coordinates
-          </button>
-          <label className="button">
-            <ImageIcon aria-hidden="true" />
-            Add image
-            <input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              style={{ display: 'none' }}
-              onChange={(event) => handlePhotoFile(event.target.files?.[0])}
-            />
-          </label>
-          <button className="button" type="button" onClick={logPhoto} disabled={!canSaveEvidence}>
-            <Plus aria-hidden="true" />
-            {isSavingEvidence ? 'Saving...' : 'Save evidence'}
-          </button>
-          {gpsStatus ? <span className="row-meta">{gpsStatus}</span> : null}
-          {storageStatus ? <span className="row-meta">{storageStatus}</span> : null}
-        </div>
-        {photoDraft.imagePreviewUrl ? (
-          <img className="evidence-preview" src={photoDraft.imagePreviewUrl} alt="Selected WOWSA evidence" />
-        ) : null}
-        <label className="field-label" style={{ marginTop: 12 }}>
-          Notes
-          <textarea
-            className="textarea"
-            value={photoDraft.notes}
-            onChange={(event) => setPhotoDraft((draft) => ({ ...draft, notes: event.target.value }))}
-            placeholder="Conditions, landmarks, file name, or certification notes"
-          />
-        </label>
-        <div className="row-actions" style={{ marginTop: 12 }}>
-          <a className="button" href={evidenceManifestHref} download="wowsa-evidence-manifest.json">
-            <CheckCircle2 aria-hidden="true" />
-            Evidence JSON
-          </a>
-          <a className="button" href={routeCsvHref} download={routeCsvName}>
-            <MapPin aria-hidden="true" />
-            Route CSV
-          </a>
-          <a
-            className="button"
-            href={mailtoHref(
-              reportEmail,
-              `${reportPrefix} - WOWSA Certification Photo Log - ${mission.session.location || mission.name} - ${reportDate}`,
-              buildWowsaReport(mission)
-            )}
-          >
-            <Mail aria-hidden="true" />
-            WOWSA Email
-          </a>
-        </div>
-        {wowsaPhotos.length ? (
-          <ul className="row-list" style={{ marginTop: 16 }}>
-            {wowsaPhotos.map((photo) => {
-              const imageUrl = photo.imageDataUrl || storedImageUrls[photo.id];
-
-              return (
-                <li className="list-row" key={photo.id}>
-                  <div className="split-row">
-                    <div>
-                      <div className="row-title">Photo #{photo.number}</div>
-                      <div className="row-meta">
-                        {formatClock(photo.at)} · {photo.gps || 'GPS not set'}
-                        {photo.gpsAccuracyM ? ` · ±${Math.round(photo.gpsAccuracyM)}m` : ''} · {photo.distanceSwum || 'distance not set'}
-                      </div>
-                      <div className="row-meta">
-                        {photo.imageName || 'No image name recorded'}
-                        {photo.imageStorageKey ? ' · stored in browser evidence cache' : ''}
-                      </div>
-                    </div>
-                    <div className="row-actions">
-                      <span className={photo.evidenceStatus === 'ready' ? 'status-pill done' : 'status-pill overdue'}>
-                        {photo.evidenceStatus}
-                      </span>
-                      {imageUrl ? (
-                        <a className="button" href={imageUrl} download={photo.imageName || `wowsa-photo-${photo.number}.jpg`}>
-                          Image
-                        </a>
-                      ) : null}
-                      <button className="button-icon" type="button" aria-label={`Remove photo ${photo.number}`} onClick={() => handleRemovePhoto(photo.id, photo.imageStorageKey)}>
-                        <Trash2 aria-hidden="true" />
-                      </button>
-                    </div>
-                  </div>
-                  {imageUrl ? <img className="evidence-thumb" src={imageUrl} alt={`WOWSA evidence ${photo.number}`} /> : null}
-                  <ul className="evidence-checks" aria-label={`Evidence checks for photo ${photo.number}`}>
-                    {getWowsaEvidenceChecks(photo).map((check) => (
-                      <li className={check.done ? 'evidence-check done' : 'evidence-check missing'} key={check.id}>
-                        <CheckCircle2 aria-hidden="true" />
-                        {check.label}
-                      </li>
-                    ))}
-                  </ul>
-                </li>
-              );
-            })}
-          </ul>
-        ) : null}
       </section>
 
-      <section className="panel span-12">
-        <div className="panel-header">
-          <div>
-            <h3 className="panel-title">Route Evidence</h3>
-            <p className="panel-subtitle">{(mission.expeditionCheckpoints ?? []).length} ordered GPS checkpoints.</p>
+      <div className="page-grid">
+        <section className="panel span-4">
+          <div className="panel-header">
+            <div>
+              <h3 className="panel-title">Live Conditions</h3>
+              <p className="panel-subtitle">Last automatic capture</p>
+            </div>
+            <CloudSun aria-hidden="true" />
           </div>
-          <MapPin aria-hidden="true" />
-        </div>
-        <ul className="timeline-list">
-          {(mission.expeditionCheckpoints ?? []).map((checkpoint) => (
-            <li className="timeline-item" key={checkpoint.id}>
-              <span className="timeline-time">{formatClock(checkpoint.at)}</span>
-              <div>
-                <div className="timeline-summary">{checkpoint.label}</div>
-                <div className="timeline-detail">
-                  {checkpoint.gps} {checkpoint.accuracyM ? `· ±${Math.round(checkpoint.accuracyM)}m` : ''} · {checkpoint.note}
-                </div>
-              </div>
-              <span className="severity-pill info">gps</span>
-            </li>
-          ))}
-        </ul>
-      </section>
+          <div className="metric-grid observation-metrics">
+            <div className="metric">
+              <span className="metric-label">GPS</span>
+              <span className="metric-value">{mission.position.label}</span>
+              <span className="metric-note">
+                {formatClock(mission.position.updatedAt)}
+              </span>
+            </div>
+            <div className="metric">
+              <span className="metric-label">Weather</span>
+              <span className="metric-value">{mission.conditions.summary}</span>
+              <span className="metric-note">
+                {Math.round(mission.conditions.airTempF)}F air
+              </span>
+            </div>
+            <div className="metric">
+              <span className="metric-label">Water</span>
+              <span className="metric-value">
+                {Math.round(mission.conditions.waterTempF)}F
+              </span>
+              <span className="metric-note">editable per photo</span>
+            </div>
+            <div className="metric">
+              <span className="metric-label">Wind</span>
+              <span className="metric-value">
+                {Math.round(mission.conditions.windKts)} kt
+              </span>
+              <span className="metric-note">
+                {mission.conditions.swellFt} ft swell
+              </span>
+            </div>
+          </div>
+        </section>
 
-      <section className="panel span-8">
-        <div className="panel-header">
-          <div>
-            <h3 className="panel-title">Sponsor Obligations</h3>
-            <p className="panel-subtitle">Media window: hold unless safety is clear.</p>
+        <section className="panel span-8">
+          <div className="panel-header">
+            <div>
+              <h3 className="panel-title">Observation Capture</h3>
+              <p className="panel-subtitle">
+                {readyCount}/{wowsaPhotos.length} entries have photo and GPS
+                evidence
+              </p>
+            </div>
+            <Camera aria-hidden="true" />
           </div>
-          <Handshake aria-hidden="true" />
-        </div>
-        <ul className="row-list">
-          {mission.partnerTasks.map((task) => (
-            <li className="list-row" key={task.id}>
-              <div className="split-row">
-                <div>
-                  <div className="row-title">{task.title}</div>
-                  <div className="row-meta">
-                    {getCrewLabel(mission, task.ownerId)} · Due {formatClock(task.dueAt)}
-                  </div>
-                </div>
-                <span className={`status-pill ${task.status}`}>{task.status}</span>
+
+          <div className="observation-capture-grid">
+            <div className="observation-photo-drop">
+              {photoDraft.imagePreviewUrl ? (
+                <img
+                  src={photoDraft.imagePreviewUrl}
+                  alt="Selected swimmer observation"
+                />
+              ) : (
+                <label className="photo-prompt">
+                  <ImageIcon aria-hidden="true" />
+                  Capture Swimmer Photo
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="visually-hidden-input"
+                    aria-label="Add image"
+                    onChange={(event) =>
+                      handlePhotoFile(event.target.files?.[0])
+                    }
+                  />
+                </label>
+              )}
+            </div>
+
+            <div className="observation-form">
+              <div className="two-column-form">
+                <label className="field-label">
+                  GPS
+                  <input
+                    className="input"
+                    value={photoDraft.gps}
+                    onChange={(event) => {
+                      const parsed = parseGpsLabel(event.target.value);
+                      setPhotoDraft((draft) => ({
+                        ...draft,
+                        gps: event.target.value,
+                        lat: parsed?.lat,
+                        lon: parsed?.lon,
+                        latText: parsed ? String(parsed.lat) : draft.latText,
+                        lonText: parsed ? String(parsed.lon) : draft.lonText,
+                      }));
+                    }}
+                    placeholder={mission.position.label}
+                  />
+                </label>
+                <label className="field-label">
+                  Weather
+                  <input
+                    className="input"
+                    value={photoDraft.weatherSummary}
+                    onChange={(event) =>
+                      setPhotoDraft((draft) => ({
+                        ...draft,
+                        weatherSummary: event.target.value,
+                      }))
+                    }
+                    placeholder={mission.conditions.summary}
+                  />
+                </label>
+                <label className="field-label">
+                  Water temp
+                  <input
+                    className="input"
+                    inputMode="decimal"
+                    value={photoDraft.waterTempF}
+                    onChange={(event) =>
+                      setPhotoDraft((draft) => ({
+                        ...draft,
+                        waterTempF: event.target.value,
+                      }))
+                    }
+                    placeholder={`${mission.conditions.waterTempF}`}
+                  />
+                </label>
+                <label className="field-label">
+                  Wind
+                  <input
+                    className="input"
+                    inputMode="decimal"
+                    value={photoDraft.windKts}
+                    onChange={(event) =>
+                      setPhotoDraft((draft) => ({
+                        ...draft,
+                        windKts: event.target.value,
+                      }))
+                    }
+                    placeholder={`${mission.conditions.windKts} kt`}
+                  />
+                </label>
               </div>
-              <span className="row-meta">{task.notes}</span>
+
+              <details className="manual-gps-details">
+                <summary>Manual GPS backup</summary>
+                <div className="two-column-form">
+                  <label className="field-label">
+                    Latitude
+                    <input
+                      className="input"
+                      inputMode="decimal"
+                      value={photoDraft.latText}
+                      onChange={(event) => {
+                        const lat = coordinateFromText(
+                          event.target.value,
+                          -90,
+                          90,
+                        );
+                        setPhotoDraft((draft) => ({
+                          ...draft,
+                          latText: event.target.value,
+                          lat,
+                          gps:
+                            lat !== undefined && draft.lon !== undefined
+                              ? formatGpsLabel(lat, draft.lon)
+                              : draft.gps,
+                        }));
+                      }}
+                    />
+                  </label>
+                  <label className="field-label">
+                    Longitude
+                    <input
+                      className="input"
+                      inputMode="decimal"
+                      value={photoDraft.lonText}
+                      onChange={(event) => {
+                        const lon = coordinateFromText(
+                          event.target.value,
+                          -180,
+                          180,
+                        );
+                        setPhotoDraft((draft) => ({
+                          ...draft,
+                          lonText: event.target.value,
+                          lon,
+                          gps:
+                            draft.lat !== undefined && lon !== undefined
+                              ? formatGpsLabel(draft.lat, lon)
+                              : draft.gps,
+                        }));
+                      }}
+                    />
+                  </label>
+                </div>
+              </details>
+
+              <label className="checkbox-row observation-checkbox">
+                <input
+                  type="checkbox"
+                  checked={photoDraft.feedCompleted}
+                  onChange={(event) =>
+                    setPhotoDraft((draft) => ({
+                      ...draft,
+                      feedCompleted: event.target.checked,
+                    }))
+                  }
+                />
+                Feed completed
+              </label>
+
+              <label className="field-label">
+                Notes
+                <textarea
+                  className="textarea"
+                  value={photoDraft.notes}
+                  onChange={(event) =>
+                    setPhotoDraft((draft) => ({
+                      ...draft,
+                      notes: event.target.value,
+                    }))
+                  }
+                  placeholder="Dolphin sighting, chop, equipment adjustment, swimmer response"
+                />
+              </label>
+
               <div className="row-actions">
+                <button
+                  className="button"
+                  type="button"
+                  onClick={updateDraftFromContext}
+                >
+                  <MapPin aria-hidden="true" />
+                  Refresh GPS + Weather
+                </button>
                 <button
                   className="button primary"
                   type="button"
-                  disabled={task.status === 'done'}
-                  onClick={() => completePartnerTask(task.id)}
+                  onClick={saveObservation}
+                  disabled={!photoDraft.imageFile || isSavingEvidence}
                 >
-                  <CheckCircle2 aria-hidden="true" />
-                  Complete
+                  <Plus aria-hidden="true" />
+                  {isSavingEvidence ? "Saving" : "Save Observation"}
                 </button>
               </div>
-            </li>
-          ))}
-        </ul>
-      </section>
+              {[gpsStatus, weatherStatus, storageStatus]
+                .filter(Boolean)
+                .map((status) => (
+                  <p className="row-meta observation-status" key={status}>
+                    {status}
+                  </p>
+                ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="panel span-12">
+          <div className="panel-header">
+            <div>
+              <h3 className="panel-title">Manual Timeline Entry</h3>
+              <p className="panel-subtitle">
+                Timestamp, GPS, and weather are attached automatically
+              </p>
+            </div>
+            <Waves aria-hidden="true" />
+          </div>
+          <div className="quick-event-grid">
+            {quickEvents.map((event) => (
+              <button
+                className="quick-event-button"
+                type="button"
+                key={event.label}
+                onClick={() =>
+                  addQuickEvent(event.label, event.type, event.detail)
+                }
+              >
+                {event.type === "feeding" ? (
+                  <Utensils aria-hidden="true" />
+                ) : event.type === "weather" ? (
+                  <CloudSun aria-hidden="true" />
+                ) : (
+                  <Plus aria-hidden="true" />
+                )}
+                {event.label}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="panel span-12">
+          <div className="panel-header">
+            <div>
+              <h3 className="panel-title">Session Export</h3>
+              <p className="panel-subtitle">
+                Complete observation record with photos, GPS history, weather
+                history, and notes
+              </p>
+            </div>
+            <Database aria-hidden="true" />
+          </div>
+          <div className="row-actions">
+            <a
+              className="button primary"
+              href={observationJsonHref}
+              download="wowsa-observation-record.json"
+            >
+              <FileDown aria-hidden="true" />
+              Official JSON
+            </a>
+            <a
+              className="button"
+              href={mailtoHref(
+                mission.session.operationsEmail || observationEmail,
+                `${mission.name} - WOWSA Observation Record - ${new Date().toLocaleDateString("en-US")}`,
+                buildWowsaReport(mission),
+              )}
+            >
+              <Mail aria-hidden="true" />
+              Gmail Backup
+            </a>
+            <button className="button" type="button" onClick={backupAndClose}>
+              <CheckCircle2 aria-hidden="true" />
+              End & Backup
+            </button>
+          </div>
+          {backupStatus ? (
+            <p className="row-meta observation-status">{backupStatus}</p>
+          ) : null}
+        </section>
+
+        <section className="panel span-12">
+          <div className="panel-header">
+            <div>
+              <h3 className="panel-title">Complete Swim Timeline</h3>
+              <p className="panel-subtitle">
+                {timelineItems.length} chronological records
+              </p>
+            </div>
+            <Timer aria-hidden="true" />
+          </div>
+          {timelineItems.length ? (
+            <ol className="observation-timeline">
+              {timelineItems.map((item) => {
+                if (item.kind === "observation") {
+                  const imageUrl =
+                    item.photo.imageDataUrl || storedImageUrls[item.photo.id];
+                  return (
+                    <li
+                      className="observation-timeline-row photo"
+                      key={`photo-${item.photo.id}`}
+                    >
+                      <span className="timeline-time">
+                        {formatClock(item.photo.at)}
+                      </span>
+                      <div className="observation-card-main">
+                        <div className="split-row">
+                          <div>
+                            <div className="timeline-summary">
+                              Observation #{item.photo.number}
+                            </div>
+                            <div className="timeline-detail">
+                              {item.photo.gps || "GPS pending"} -{" "}
+                              {item.photo.weatherSummary || "weather pending"} -
+                              Water{" "}
+                              {item.photo.waterTempF ??
+                                mission.conditions.waterTempF}
+                              F - Wind{" "}
+                              {item.photo.windKts ?? mission.conditions.windKts}{" "}
+                              kt
+                            </div>
+                          </div>
+                          <div className="row-actions">
+                            <span
+                              className={
+                                item.photo.evidenceStatus === "ready"
+                                  ? "status-pill done"
+                                  : "status-pill overdue"
+                              }
+                            >
+                              {item.photo.evidenceStatus}
+                            </span>
+                            <button
+                              className="button-icon"
+                              type="button"
+                              aria-label={`Remove observation ${item.photo.number}`}
+                              onClick={() =>
+                                handleRemovePhoto(
+                                  item.photo.id,
+                                  item.photo.imageStorageKey,
+                                )
+                              }
+                            >
+                              <Trash2 aria-hidden="true" />
+                            </button>
+                          </div>
+                        </div>
+                        {imageUrl ? (
+                          <img
+                            className="observation-thumb"
+                            src={imageUrl}
+                            alt={`Observation ${item.photo.number}`}
+                          />
+                        ) : null}
+                        {item.photo.notes ? (
+                          <p className="observation-note">{item.photo.notes}</p>
+                        ) : null}
+                        <ul
+                          className="evidence-checks"
+                          aria-label={`Evidence checks for observation ${item.photo.number}`}
+                        >
+                          {getWowsaEvidenceChecks(item.photo).map((check) => (
+                            <li
+                              className={
+                                check.done
+                                  ? "evidence-check done"
+                                  : "evidence-check missing"
+                              }
+                              key={check.id}
+                            >
+                              <CheckCircle2 aria-hidden="true" />
+                              {check.label}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </li>
+                  );
+                }
+
+                return (
+                  <li
+                    className="observation-timeline-row event"
+                    key={`event-${item.event.id}`}
+                  >
+                    <span className="timeline-time">
+                      {formatClock(item.event.at)}
+                    </span>
+                    <div>
+                      <div className="timeline-summary">
+                        {item.event.summary}
+                      </div>
+                      <div className="timeline-detail">
+                        {item.event.detail} -{" "}
+                        {item.event.gps || mission.position.label} -{" "}
+                        {getCrewLabel(mission, item.event.actorId)}
+                      </div>
+                    </div>
+                    <span
+                      className={`severity-pill ${item.event.severity ?? "info"}`}
+                    >
+                      {item.event.type}
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+          ) : (
+            <div className="empty-state">No observations logged yet.</div>
+          )}
+        </section>
+      </div>
     </div>
   );
 }

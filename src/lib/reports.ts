@@ -11,13 +11,13 @@ Mission: ${mission.name}
 Status: ${mission.status}
 Swimmer: ${blank(session.swimmerName)}
 Location: ${blank(session.location)}
-Planned Distance: ${blank(session.plannedDistance)}
-Planned Start Time: ${blank(session.plannedStartTime)}
-Feeding Interval: ${mission.feedingIntervalMinutes} min
+Session Start: ${blank(mission.startedAt)}
+Observer Interval: ${mission.wowsaPhotoIntervalMinutes ?? 30} min
 Current Position: ${blank(mission.position.label)}
 Conditions: ${blank(mission.conditions.summary)}
+Water Temperature: ${blank(mission.conditions.waterTempF)} F
+Wind: ${blank(mission.conditions.windKts)} kt
 GPS Start: ${blank(session.gpsStart)}
-GPS End: ${blank(session.gpsEnd)}
 Primary Vessel: ${blank(session.primaryVessel)}
 Support Vessels: ${blank(session.supportVessels)}
 Lead Crew: ${blank(session.leadCrew)}
@@ -68,7 +68,11 @@ function wowsaBlock(mission: Mission) {
   GPS: ${blank(photo.gps)}
   Lat/Lon: ${photo.lat !== undefined && photo.lon !== undefined ? `${photo.lat}, ${photo.lon}` : '-'}
   GPS Accuracy: ${photo.gpsAccuracyM ? `+/- ${Math.round(photo.gpsAccuracyM)}m` : '-'}
-  Distance swum: ${blank(photo.distanceSwum)}
+  Weather: ${blank(photo.weatherSummary)}
+  Air Temperature: ${blank(photo.airTempF)} F
+  Water Temperature: ${blank(photo.waterTempF)} F
+  Wind: ${photo.windKts !== undefined ? `${photo.windKts} kt${photo.windDirection ? ` ${photo.windDirection}` : ''}` : '-'}
+  Feed completed: ${photo.feedCompleted ? 'Yes' : 'No'}
   Evidence status: ${blank(photo.evidenceStatus)}
   Photo file: ${photo.imageName || (photo.hasPhoto ? 'Selected - attach from camera roll' : 'Not selected')}
   Local image storage: ${photo.imageStorageKey ? 'Browser evidence cache' : '-'}
@@ -228,7 +232,7 @@ export function getWowsaEvidenceChecks(photo: WowsaPhotoEntry) {
     { id: 'gps', label: 'GPS present', done: Boolean(photo.gps) },
     { id: 'timestamp', label: 'Timestamp present', done: Boolean(photo.at) },
     { id: 'accuracy', label: 'Accuracy present', done: photo.gpsAccuracyM !== undefined },
-    { id: 'distance', label: 'Distance noted', done: Boolean(photo.distanceSwum) }
+    { id: 'weather', label: 'Weather present', done: Boolean(photo.weatherSummary) }
   ];
 }
 
@@ -242,11 +246,9 @@ export function buildWowsaEvidenceManifest(mission: Mission) {
         name: mission.name,
         swimmer: mission.session.swimmerName,
         location: mission.session.location,
-        plannedDistance: mission.session.plannedDistance,
-        feedingIntervalMinutes: mission.feedingIntervalMinutes,
         wowsaPhotoIntervalMinutes: mission.wowsaPhotoIntervalMinutes ?? 30,
         gpsStart: mission.session.gpsStart,
-        gpsEnd: mission.session.gpsEnd
+        primaryVessel: mission.session.primaryVessel
       },
       summary: {
         totalPhotos: photos.length,
@@ -264,6 +266,13 @@ export function buildWowsaEvidenceManifest(mission: Mission) {
         imageName: photo.imageName,
         imageStorageKey: photo.imageStorageKey,
         imageSizeBytes: photo.imageSizeBytes,
+        weatherSummary: photo.weatherSummary,
+        airTempF: photo.airTempF,
+        waterTempF: photo.waterTempF,
+        windKts: photo.windKts,
+        windDirection: photo.windDirection,
+        feedCompleted: photo.feedCompleted,
+        eventTag: photo.eventTag,
         evidenceStatus: photo.evidenceStatus,
         checks: getWowsaEvidenceChecks(photo),
         notes: photo.notes

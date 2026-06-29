@@ -5,6 +5,9 @@ export const roleLabels: Record<CrewRole, string> = {
   captain: 'Captain',
   safety: 'Safety Lead',
   medical: 'Medic',
+  'first-mate': 'First Mate',
+  observer: 'Observer',
+  'land-support': 'Lead Land Support',
   'kayak-1': 'Kayak 1',
   'kayak-2': 'Kayak 2',
   boat: 'Boat Lead',
@@ -33,7 +36,7 @@ export function buildLiveSeedMission(now = new Date()): Mission {
     id: 'mission-catalina-qualifier',
     mode: 'live',
     name: liveMissionName,
-    status: 'active',
+    status: 'preparing',
     startedAt: iso(startedAt),
     feedingIntervalMinutes: 30,
     wowsaPhotoIntervalMinutes: 30,
@@ -134,7 +137,7 @@ export function buildLiveSeedMission(now = new Date()): Mission {
     crew: [
       {
         id: 'crew-captain',
-        name: 'Matthew Sessions',
+        name: 'Captain',
         role: 'captain',
         phone: '',
         shiftStart: iso(shiftStart),
@@ -145,7 +148,7 @@ export function buildLiveSeedMission(now = new Date()): Mission {
       },
       {
         id: 'crew-safety',
-        name: 'Jonathan Cahill',
+        name: 'Safety Lead',
         role: 'safety',
         phone: '+1 650 224 1189',
         shiftStart: iso(shiftStart),
@@ -156,7 +159,7 @@ export function buildLiveSeedMission(now = new Date()): Mission {
       },
       {
         id: 'crew-medical',
-        name: 'Katherine Susskind',
+        name: 'Sarah',
         role: 'medical',
         phone: '+1 408 472 2770',
         shiftStart: iso(shiftStart),
@@ -179,7 +182,7 @@ export function buildLiveSeedMission(now = new Date()): Mission {
       {
         id: 'crew-kayak-2',
         name: 'Heather Hitchcock',
-        role: 'kayak-2',
+        role: 'observer',
         phone: '',
         shiftStart: iso(nextShiftStart),
         shiftEnd: iso(nextShiftEnd),
@@ -190,7 +193,7 @@ export function buildLiveSeedMission(now = new Date()): Mission {
       {
         id: 'crew-boat',
         name: 'Maisie Bristow',
-        role: 'boat',
+        role: 'first-mate',
         phone: '',
         shiftStart: iso(shiftStart),
         shiftEnd: iso(nextShiftEnd),
@@ -200,14 +203,14 @@ export function buildLiveSeedMission(now = new Date()): Mission {
       },
       {
         id: 'crew-media',
-        name: 'Billy Rinehart',
-        role: 'media',
-        phone: '+1 415 840 4168',
+        name: 'Sarah Scheltz',
+        role: 'land-support',
+        phone: '+1 818 307 7553',
         shiftStart: iso(shiftStart),
         shiftEnd: iso(shiftEnd),
-        responsibilities: ['PR and communications', 'Media outreach', 'Press coordination'],
+        responsibilities: ['Lead land support', 'Shore-side backup record', 'California 2026 Gmail backup'],
         backupId: 'crew-safety',
-        backupPlan: 'All media pauses if safety, observer documentation, or vessel operations need another recorder or lookout.'
+        backupPlan: 'Observer keeps the official log onboard; land support receives the backup copy after session close.'
       }
     ],
     checklistItems: [
@@ -615,53 +618,7 @@ export function buildLiveSeedMission(now = new Date()): Mission {
         notes: 'Warm handoff, dry layers, vitals station, and recovery nutrition staged.'
       }
     ],
-    timeline: [
-      {
-        id: 'event-start',
-        type: 'note',
-        at: iso(startedAt),
-        actorId: 'crew-captain',
-        summary: 'Swim started',
-        detail: 'Mile zero logged with all active teams checked in.',
-        severity: 'info'
-      },
-      {
-        id: 'event-feed-last',
-        type: 'feeding',
-        at: iso(subMinutes(now, 26)),
-        actorId: 'crew-kayak-1',
-        summary: 'Feeding completed',
-        detail: 'Carb bottle, warm rinse, verbal condition confirmed.',
-        severity: 'info'
-      },
-      {
-        id: 'event-condition',
-        type: 'condition',
-        at: iso(subMinutes(now, 16)),
-        actorId: 'crew-medical',
-        summary: 'Condition steady',
-        detail: 'Stroke cadence stable, response clear.',
-        severity: 'info'
-      },
-      {
-        id: 'event-course',
-        type: 'course',
-        at: iso(subMinutes(now, 10)),
-        actorId: 'crew-boat',
-        summary: 'Course adjusted',
-        detail: 'Adjusted 8 degrees north to hold projected line.',
-        severity: 'info'
-      },
-      {
-        id: 'event-checkin',
-        type: 'check-in',
-        at: iso(subMinutes(now, 5)),
-        actorId: 'crew-safety',
-        summary: 'Team check-in confirmed',
-        detail: 'Boat, kayak, medical, and captain channels confirmed.',
-        severity: 'info'
-      }
-    ],
+    timeline: [],
     alerts: [],
     swimmerConditions: [
       {

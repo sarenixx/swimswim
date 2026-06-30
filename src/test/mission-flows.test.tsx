@@ -387,10 +387,21 @@ describe("observer-first swim flows", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Past Logs/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Trends/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Data & Export/i })).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /Safety & Emergency/i }),
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Start Session/i })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Data & Export/i }));
+    expect(
+      await screen.findByRole("heading", { name: "Data & Export" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Shared Save Status")).toBeInTheDocument();
+    expect(screen.getByText("Email Recipients")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Download Daily Summary/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Download Full Medical Record/i })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Today" }));
 
     await user.click(screen.getByRole("button", { name: /Athlete Pre-Swim/i }));
     await user.type(screen.getByLabelText(/Sleep duration/i), "7.5");

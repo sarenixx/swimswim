@@ -18,6 +18,8 @@ The app still works locally with no backend. For Catherine's test swim, set up S
 
 When configured, Postgres stores the shared mission snapshot, Supabase Storage stores WOWSA image files, and the app keeps local storage as a fallback.
 
+Security note: `supabase/schema.sql` is a controlled test-swim schema with permissive anon policies so phones can sync quickly. Before using it as the durable medical-record system of record, replace those policies with authenticated, mission-scoped Row Level Security and private Storage rules.
+
 ## Access Protection
 
 The app includes a client-side access gate. Set `VITE_SITE_ACCESS_SHA256` to the SHA-256 hash of the access code before deploying. Generate a hash locally with:

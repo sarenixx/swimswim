@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Copy, Radio, RotateCcw } from 'lucide-react';
 import logoUrl from '../assets/logo.webp';
+import { MissionSyncStatusProvider } from '../lib/sync/SyncStatusContext';
 import { useMissionSync } from '../lib/sync/useMissionSync';
 import { createLiveStateFromTemplate, useLiveMissionStore, useMissionStore } from '../state/useMissionStore';
 import {
@@ -124,7 +125,9 @@ export function AppShell() {
           </div>
         </header>
 
-        <Outlet />
+        <MissionSyncStatusProvider value={sqlSync}>
+          <Outlet />
+        </MissionSyncStatusProvider>
       </main>
 
       <nav className="mobile-nav" aria-label="Primary mobile navigation">

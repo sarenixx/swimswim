@@ -2,6 +2,8 @@ import {
   Ambulance,
   CheckCircle2,
   ClipboardCheck,
+  Database,
+  FileDown,
   HeartPulse,
   History,
   LineChart,
@@ -11,6 +13,9 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { buildDailyMedicalSummary, buildMedicalReport, mailtoHref, medicalReportRecipients } from '../../lib/reports';
+import { backupMissionSnapshot, isRemoteSyncAvailable } from '../../lib/sync/supabaseClient';
+import { useMissionSyncStatus } from '../../lib/sync/SyncStatusContext';
+import type { MissionSyncStatus } from '../../lib/sync/useMissionSync';
 import { formatClock } from '../../state/selectors';
 import type {
   MedicalAdverseEvent,
@@ -27,8 +32,9 @@ import { useMissionStore } from '../../state/useMissionStore';
 
 const medicalEmail = medicalReportRecipients.join(',');
 
-type MedicalView = 'dashboard' | 'checklist' | 'adverse' | 'past' | 'trends' | 'safety';
+type MedicalView = 'dashboard' | 'checklist' | 'adverse' | 'past' | 'trends' | 'data' | 'safety';
 type FieldKind = 'text' | 'number' | 'textarea' | 'select' | 'scale';
+type MedicalBackupState = 'idle' | 'saving' | 'success' | 'error';
 
 interface DeviceSourceBinding {
   source: Extract<MedicalDeviceSource, 'oura' | 'garmin'>;
@@ -345,10 +351,44 @@ const downloadText = (filename: string, mimeType: string, body: string) => {
 
 const escapeCsv = (value: string | number) => `"${String(value).replace(/"/g, '""')}"`;
 
+const safeFilenamePart = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '') || 'medical';
+
+const syncPillClass = (status: MissionSyncStatus) =>
+  status.state === 'synced' || status.state === 'syncing' || status.state === 'loading' ? 'sync-pill online' : 'sync-pill offline';
+
+const medicalSyncLabel = (status: MissionSyncStatus, offlineQueueCount: number) => {
+  if (!status.enabled) {
+    return 'Local only';
+  }
+
+  if (status.state === 'synced') {
+    return 'Shared record saved';
+  }
+
+  if (status.state === 'syncing') {
+    return 'Saving shared record';
+  }
+
+  if (status.state === 'loading') {
+    return 'Loading shared record';
+  }
+
+  if (status.state === 'offline') {
+    return offlineQueueCount ? `${offlineQueueCount} waiting to sync` : 'Offline - waiting to sync';
+  }
+
+  if (status.state === 'error') {
+    return 'Shared sync error';
+  }
+
+  return status.label;
+};
+
 function SafetyEmergencyView() {
   const mission = useMissionStore((state) => state.mission);
   const online = useMissionStore((state) => state.online);
   const offlineQueue = useMissionStore((state) => state.offlineQueue);
+  const syncStatus = useMissionSyncStatus();
   const setMedicalRecoveryDay = useMissionStore((state) => state.setMedicalRecoveryDay);
   const updateMedicalDailyChecklistField = useMissionStore((state) => state.updateMedicalDailyChecklistField);
   const completeMedicalDailyChecklist = useMissionStore((state) => state.completeMedicalDailyChecklist);
@@ -366,6 +406,10 @@ function SafetyEmergencyView() {
   });
   const [selectedMetricId, setSelectedMetricId] = useState('weight');
   const [selectedAdverseEventId, setSelectedAdverseEventId] = useState<string>();
+  const [backupStatus, setBackupStatus] = useState<{ state: MedicalBackupState; detail: string }>(() => ({
+    state: isRemoteSyncAvailable() ? 'idle' : 'error',
+    detail: isRemoteSyncAvailable() ? 'Shared Supabase record is available.' : 'Supabase sync is not configured for this device.'
+  }));
   const [adverseDraft, setAdverseDraft] = useState({
     eventAt: getDateTimeInputValue(),
     severity: 'watch' as MedicalAdverseEventSeverity,
@@ -397,6 +441,10 @@ function SafetyEmergencyView() {
   const selectedMetric = trendMetricById.get(selectedMetricId) ?? trendMetrics[0];
   const medicalReportSubject = `${mission.name} - Medical Record - ${new Date().toLocaleDateString('en-US')}`;
   const dailyReportSubject = `${mission.name} - Daily Medical Summary - ${checklistDate}`;
+  const dailyReportBody = buildDailyMedicalSummary(mission, checklistDate);
+  const medicalReportBody = buildMedicalReport(mission);
+  const dailyReportFilename = `${safeFilenamePart(mission.name)}-daily-medical-summary-${checklistDate}.txt`;
+  const medicalRecordFilename = `${safeFilenamePart(mission.name)}-medical-record-${getDateInputValue()}.txt`;
 
   const latestReadingValue = (binding?: DeviceSourceBinding) => {
     if (!binding) {
@@ -456,6 +504,31 @@ function SafetyEmergencyView() {
   const openPastAdverseEvent = (entry: MedicalAdverseEvent) => {
     setSelectedAdverseEventId(entry.id);
     setActiveView('adverse');
+  };
+
+  const saveSharedSnapshot = async () => {
+    setBackupStatus({ state: 'saving', detail: 'Saving the current mission record to Supabase.' });
+
+    try {
+      const result = await backupMissionSnapshot(mission);
+      setBackupStatus({
+        state: 'success',
+        detail: `Shared Supabase snapshot saved at ${new Date(result.updatedAt).toLocaleTimeString()}.`
+      });
+    } catch (error) {
+      setBackupStatus({
+        state: 'error',
+        detail: error instanceof Error ? error.message : 'Shared Supabase snapshot failed.'
+      });
+    }
+  };
+
+  const downloadDailySummary = () => {
+    downloadText(dailyReportFilename, 'text/plain;charset=utf-8', dailyReportBody);
+  };
+
+  const downloadMedicalRecord = () => {
+    downloadText(medicalRecordFilename, 'text/plain;charset=utf-8', medicalReportBody);
   };
 
   const handlePhotoUpload = async (files: FileList | null) => {
@@ -759,7 +832,10 @@ function SafetyEmergencyView() {
             Recovery day
           </label>
           <span className={online ? 'sync-pill online' : 'sync-pill offline'}>
-            {online ? 'Autosaved locally' : `${offlineQueue.length} queued offline`}
+            {online ? 'Online' : `${offlineQueue.length} queued offline`}
+          </span>
+          <span className={syncPillClass(syncStatus)} title={syncStatus.detail}>
+            {medicalSyncLabel(syncStatus, offlineQueue.length)}
           </span>
         </div>
       </div>
@@ -805,6 +881,10 @@ function SafetyEmergencyView() {
         <button className="button" type="button" onClick={() => setActiveView('trends')}>
           <LineChart aria-hidden="true" />
           Trends
+        </button>
+        <button className="button" type="button" onClick={() => setActiveView('data')}>
+          <Database aria-hidden="true" />
+          Data & Export
         </button>
         <button className="button" type="button" onClick={() => setActiveView('safety')}>
           <ShieldAlert aria-hidden="true" />
@@ -1097,6 +1177,79 @@ function SafetyEmergencyView() {
     </section>
   );
 
+  const renderDataExport = () => (
+    <section className="panel span-12">
+      <div className="panel-header">
+        <div>
+          <h3 className="panel-title">Data & Export</h3>
+          <p className="panel-subtitle">Shared record status, downloads, and email copies</p>
+        </div>
+        <button className="button ghost" type="button" onClick={() => setActiveView('dashboard')}>
+          Today
+        </button>
+      </div>
+
+      <div className="medical-data-grid">
+        <article className="daily-checklist-row">
+          <div className="split-row">
+            <div>
+              <div className="row-title">Shared Save Status</div>
+              <div className="row-meta">{syncStatus.detail}</div>
+            </div>
+            <span className={syncPillClass(syncStatus)}>{medicalSyncLabel(syncStatus, offlineQueue.length)}</span>
+          </div>
+          <span className="alert-detail">
+            Supabase is the shared mission record when sync is enabled. This device also keeps a local offline copy.
+          </span>
+          <button className="button" type="button" onClick={saveSharedSnapshot} disabled={!isRemoteSyncAvailable() || backupStatus.state === 'saving'}>
+            <Database aria-hidden="true" />
+            {backupStatus.state === 'saving' ? 'Saving Shared Snapshot' : 'Save Shared Snapshot'}
+          </button>
+          <span className={`row-meta backup-status ${backupStatus.state}`}>{backupStatus.detail}</span>
+        </article>
+
+        <article className="daily-checklist-row">
+          <div className="row-title">Email Recipients</div>
+          <div className="medical-recipient-list">
+            {medicalReportRecipients.map((recipient) => (
+              <span className="medical-recipient" key={recipient}>
+                {recipient}
+              </span>
+            ))}
+          </div>
+          <span className="alert-detail">
+            Email opens your mail app with a copy of the report. Review recipients and content before sending.
+          </span>
+        </article>
+
+        <article className="daily-checklist-row span-fields">
+          <div className="row-title">Medical Downloads & Email Copies</div>
+          <div className="row-actions medical-export-actions">
+            <button className="button primary" type="button" onClick={downloadDailySummary}>
+              <FileDown aria-hidden="true" />
+              Download Daily Summary
+            </button>
+            <button className="button" type="button" onClick={downloadMedicalRecord}>
+              <FileDown aria-hidden="true" />
+              Download Full Medical Record
+            </button>
+            <a className="button" href={mailtoHref(medicalEmail, dailyReportSubject, dailyReportBody)}>
+              <Mail aria-hidden="true" />
+              Email Daily Summary
+            </a>
+            <a className="button" href={mailtoHref(medicalEmail, medicalReportSubject, medicalReportBody)}>
+              <Mail aria-hidden="true" />
+              Email Full Medical Record
+            </a>
+          </div>
+          <span className="alert-detail">
+            Downloads stay on this device. Email sends a separate copy and is not the system of record.
+          </span>
+        </article>
+      </div>
+    </section>
+  );
+
   const renderSafety = () => (
     <section className="panel span-12" id="medical-record">
       <div className="panel-header">
@@ -1105,14 +1258,6 @@ function SafetyEmergencyView() {
           <p className="panel-subtitle">Medical, distress, and abort response</p>
         </div>
         <div className="row-actions">
-          <a className="button primary" href={mailtoHref(medicalEmail, dailyReportSubject, buildDailyMedicalSummary(mission, checklistDate))}>
-            <Mail aria-hidden="true" />
-            Email Daily Report
-          </a>
-          <a className="button" href={mailtoHref(medicalEmail, medicalReportSubject, buildMedicalReport(mission))}>
-            <Mail aria-hidden="true" />
-            Email Medical Record
-          </a>
           <button className="button ghost" type="button" onClick={() => setActiveView('dashboard')}>
             Today
           </button>
@@ -1166,6 +1311,7 @@ function SafetyEmergencyView() {
       {activeView === 'adverse' ? renderAdverseEvent() : null}
       {activeView === 'past' ? renderPastLogs() : null}
       {activeView === 'trends' ? renderTrends() : null}
+      {activeView === 'data' ? renderDataExport() : null}
       {activeView === 'safety' ? renderSafety() : null}
     </div>
   );

@@ -962,6 +962,35 @@ a {
   align-items: end;
 }
 
+.medical-data-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.medical-data-grid .span-fields {
+  grid-column: 1 / -1;
+}
+
+.medical-recipient-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.medical-recipient {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 var(--space-3);
+  color: var(--color-ink);
+  background: #f4f8fb;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
 .field-label.compact {
   min-width: 160px;
 }
@@ -2167,6 +2196,7 @@ input[type="range"] {
   .medical-source-grid,
   .medical-record-grid,
   .medical-log-form,
+  .medical-data-grid,
   .medical-checklist-grid,
   .medical-checklist-form,
   .medical-check-controls,

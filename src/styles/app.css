@@ -1230,6 +1230,16 @@ a {
   border-radius: var(--radius-card);
 }
 
+.daily-checklist-row.is-openable {
+  cursor: pointer;
+}
+
+.daily-checklist-row.is-openable:hover,
+.daily-checklist-row.selected {
+  border-color: var(--color-ocean);
+  box-shadow: 0 0 0 3px rgba(43, 143, 204, 0.12);
+}
+
 .daily-checklist-row.done {
   border-left-color: #41a675;
 }
@@ -1240,6 +1250,31 @@ a {
 
 .daily-checklist-row.escalated {
   border-left-color: var(--color-alert);
+}
+
+.medical-log-open-line {
+  display: block;
+  width: fit-content;
+  padding: 0;
+  color: var(--color-muted);
+  font: inherit;
+  font-weight: 800;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.medical-log-open-line.title {
+  color: var(--color-ink);
+  font-weight: 900;
+}
+
+.medical-log-open-line:hover,
+.medical-log-open-line:focus-visible {
+  color: var(--color-ocean-deep);
+  text-decoration: underline;
+  outline: none;
 }
 
 .daily-check-toggle {

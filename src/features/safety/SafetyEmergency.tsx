@@ -13,11 +13,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { buildDailyMedicalSummary, buildMedicalReport, mailtoHref, medicalReportRecipients } from '../../lib/reports';
 import { formatClock } from '../../state/selectors';
 import type {
+  MedicalAdverseEvent,
   MedicalAdverseEventPhoto,
   MedicalAdverseEventResolutionStatus,
   MedicalAdverseEventSeverity,
   MedicalDailyChecklistRecord,
   MedicalDailyChecklistType,
+  MedicalDailyRecord,
   MedicalDeviceMetrics,
   MedicalDeviceSource
 } from '../../state/types';
@@ -363,6 +365,7 @@ function SafetyEmergencyView() {
     adverseOnly: false
   });
   const [selectedMetricId, setSelectedMetricId] = useState('weight');
+  const [selectedAdverseEventId, setSelectedAdverseEventId] = useState<string>();
   const [adverseDraft, setAdverseDraft] = useState({
     eventAt: getDateTimeInputValue(),
     severity: 'watch' as MedicalAdverseEventSeverity,
@@ -382,6 +385,10 @@ function SafetyEmergencyView() {
   const selectedDailyRecord = useMemo(
     () => (mission.medicalDailyRecords ?? []).find((record) => record.date === checklistDate),
     [checklistDate, mission.medicalDailyRecords]
+  );
+  const selectedAdverseEvent = useMemo(
+    () => (mission.medicalAdverseEvents ?? []).find((entry) => entry.id === selectedAdverseEventId),
+    [mission.medicalAdverseEvents, selectedAdverseEventId]
   );
   const isRecoveryDay = selectedDailyRecord?.dayType === 'recovery';
   const currentChecklistIds = isRecoveryDay ? recoveryDayChecklistIds : swimDayChecklistIds;
@@ -428,6 +435,27 @@ function SafetyEmergencyView() {
     setMedicalRecoveryDay(checklistDate, checked);
     setActiveChecklistId(checked ? 'athlete-recovery' : 'athlete-pre-swim');
     setActiveView('dashboard');
+  };
+
+  const openPastDailyRecord = (record: MedicalDailyRecord, checklistType?: MedicalDailyChecklistType) => {
+    const savedChecklistTypes = Object.keys(record.checklists ?? {}) as MedicalDailyChecklistType[];
+    const filteredChecklist =
+      pastFilters.checklistType !== 'all' && record.checklists?.[pastFilters.checklistType] ? pastFilters.checklistType : undefined;
+    const nextChecklistType = checklistType ?? filteredChecklist ?? savedChecklistTypes[0];
+
+    setChecklistDate(record.date);
+    if (nextChecklistType) {
+      setActiveChecklistId(nextChecklistType);
+      setActiveView('checklist');
+      return;
+    }
+
+    setActiveView('dashboard');
+  };
+
+  const openPastAdverseEvent = (entry: MedicalAdverseEvent) => {
+    setSelectedAdverseEventId(entry.id);
+    setActiveView('adverse');
   };
 
   const handlePhotoUpload = async (files: FileList | null) => {
@@ -751,7 +779,14 @@ function SafetyEmergencyView() {
             </button>
           );
         })}
-        <button className="medical-task-tile adverse" type="button" onClick={() => setActiveView('adverse')}>
+        <button
+          className="medical-task-tile adverse"
+          type="button"
+          onClick={() => {
+            setSelectedAdverseEventId(undefined);
+            setActiveView('adverse');
+          }}
+        >
           <span className="medical-task-icon">
             <Plus aria-hidden="true" />
           </span>
@@ -812,6 +847,24 @@ function SafetyEmergencyView() {
           Today
         </button>
       </div>
+      {selectedAdverseEvent ? (
+        <article className={`daily-checklist-row selected ${selectedAdverseEvent.resolutionStatus === 'resolved' ? 'done' : selectedAdverseEvent.severity === 'watch' ? 'watch' : 'escalated'}`}>
+          <div className="split-row">
+            <div>
+              <div className="row-title">{selectedAdverseEvent.description}</div>
+              <div className="row-meta">
+                {formatClock(selectedAdverseEvent.eventAt)} - entered {formatClock(selectedAdverseEvent.enteredAt)} - {selectedAdverseEvent.severity}
+              </div>
+            </div>
+            <span className={`severity-pill ${selectedAdverseEvent.severity === 'emergency' ? 'critical' : selectedAdverseEvent.severity === 'watch' ? 'info' : 'warning'}`}>
+              {selectedAdverseEvent.resolutionStatus}
+            </span>
+          </div>
+          <span className="alert-detail">{selectedAdverseEvent.immediateActions || 'No immediate actions recorded.'}</span>
+          {selectedAdverseEvent.followUpRequired ? <span className="row-meta">{selectedAdverseEvent.followUpRequired}</span> : null}
+          {selectedAdverseEvent.photos.length ? <span className="row-meta">{selectedAdverseEvent.photos.length} photo(s)</span> : null}
+        </article>
+      ) : null}
       <div className="medical-log-form">
         <label className="field-label">
           Event date and time
@@ -927,7 +980,7 @@ function SafetyEmergencyView() {
 
       <div className="daily-checklist-list">
         {filteredDailyRecords.map((record) => (
-          <article className="daily-checklist-row" key={record.id}>
+          <article className="daily-checklist-row is-openable" key={record.id} onDoubleClick={() => openPastDailyRecord(record)}>
             <div className="split-row">
               <div>
                 <div className="row-title">{record.date}</div>
@@ -936,15 +989,17 @@ function SafetyEmergencyView() {
               <span className="severity-pill info">{Object.values(record.checklists ?? {}).length} checklist(s)</span>
             </div>
             {Object.values(record.checklists ?? {}).map((checklist) => (
-              <span className="row-meta" key={checklist.checklistType}>
+              <button className="row-meta medical-log-open-line" key={checklist.checklistType} type="button" onClick={() => openPastDailyRecord(record, checklist.checklistType)}>
                 {medicalChecklistTitle(checklist.checklistType)} - {checklist.status}
-              </span>
+              </button>
             ))}
           </article>
         ))}
         {filteredAdverseEvents.map((entry) => (
-          <article className="daily-checklist-row escalated" key={entry.id}>
-            <div className="row-title">{entry.description}</div>
+          <article className="daily-checklist-row escalated is-openable" key={entry.id} onDoubleClick={() => openPastAdverseEvent(entry)}>
+            <button className="row-title medical-log-open-line title" type="button" onClick={() => openPastAdverseEvent(entry)}>
+              {entry.description}
+            </button>
             <div className="row-meta">
               {entry.eventAt.slice(0, 10)} - {entry.severity} - {entry.resolutionStatus}
             </div>

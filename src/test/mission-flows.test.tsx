@@ -407,6 +407,20 @@ describe("observer-first swim flows", () => {
       "complete",
     );
 
+    await user.click(screen.getByRole("button", { name: /Past Logs/i }));
+    expect(
+      await screen.findByRole("heading", { name: "Past Logs" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Athlete Pre-Swim - complete")).toBeInTheDocument();
+    await user.dblClick(screen.getByText(dailyRecord.date));
+    expect(
+      await screen.findByRole("heading", { name: "Athlete Pre-Swim" }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/Sleep duration/i)).toHaveValue(7.5);
+    expect(screen.getByLabelText(/General comments/i)).toHaveValue(
+      "Baseline complete.",
+    );
+
     await user.click(screen.getByRole("button", { name: "Today" }));
     await user.click(screen.getByRole("button", { name: /Medic Post-Swim/i }));
     await user.selectOptions(

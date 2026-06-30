@@ -14,10 +14,13 @@ import type {
   EmergencyKind,
   EnvironmentalConditions,
   ExpeditionCheckpoint,
+  MedicalAdverseEvent,
   MedicalChecklistItem,
   MedicalChecklistStatus,
+  MedicalDailyChecklistType,
   MedicalDailyChecklistItemRecord,
   MedicalDailyRecord,
+  MedicalDeviceSource,
   MedicalSymptomEntry,
   FeedingPlanItem,
   MedicalVitals,
@@ -116,6 +119,27 @@ export interface MissionStore {
     input: { status: MedicalChecklistStatus; note?: string },
     actorId?: string
   ) => void;
+  setMedicalRecoveryDay: (date: string, isRecoveryDay: boolean, actorId?: string) => void;
+  updateMedicalDailyChecklistField: (
+    date: string,
+    checklistType: MedicalDailyChecklistType,
+    fieldId: string,
+    value: string,
+    source?: MedicalDeviceSource,
+    actorId?: string
+  ) => void;
+  completeMedicalDailyChecklist: (
+    date: string,
+    checklistType: MedicalDailyChecklistType,
+    actorId?: string
+  ) => void;
+  addMedicalAdverseEvent: (
+    entry: Omit<MedicalAdverseEvent, 'id' | 'enteredAt' | 'enteredBy'> & {
+      enteredAt?: string;
+      enteredBy?: string;
+    }
+  ) => void;
+  resolveMedicalAdverseEvent: (entryId: string, actorId?: string) => void;
   addMedicalSymptomEntry: (
     entry: Omit<MedicalSymptomEntry, 'id' | 'at' | 'actorId' | 'status' | 'resolvedAt' | 'resolvedBy'> & {
       at?: string;
@@ -317,6 +341,39 @@ const queueIfOffline = (
   at: string
 ) => (online ? offlineQueue : [...offlineQueue, createOfflineQueueEntry(action, payload, at)]);
 
+const getMedicalDailyRecord = (
+  records: MedicalDailyRecord[],
+  date: string,
+  at: string,
+  actorId: string
+): MedicalDailyRecord => {
+  const existing = records.find((record) => record.date === date);
+
+  return {
+    id: existing?.id ?? `medical-daily-record-${date}`,
+    date,
+    dayType: existing?.dayType ?? 'swim',
+    updatedAt: at,
+    updatedBy: actorId,
+    items: existing?.items ?? [],
+    checklists: existing?.checklists ?? {}
+  };
+};
+
+const upsertMedicalDailyRecord = (records: MedicalDailyRecord[], updatedRecord: MedicalDailyRecord) =>
+  [updatedRecord, ...records.filter((record) => record.date !== updatedRecord.date)].sort((left, right) =>
+    right.date.localeCompare(left.date)
+  );
+
+const isAbnormalUrineResult = (value: string) => {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized || normalized === 'normal' || normalized === 'negative' || normalized === 'clear') {
+    return false;
+  }
+
+  return /abnormal|trace|positive|blood|protein|ketone|nitrite|leukocyte|dark|cola|high/i.test(normalized);
+};
+
 const linesToList = (value: string) =>
   value
     .split('\n')
@@ -472,6 +529,27 @@ const mergePersistedMissionState = (persistedState: unknown, currentState: Missi
   const medicalSymptomLog = Array.isArray(merged.mission.medicalSymptomLog)
     ? merged.mission.medicalSymptomLog
     : currentState.mission.medicalSymptomLog;
+  const legacyAdverseEvents: MedicalAdverseEvent[] = medicalSymptomLog.map((entry) => ({
+    id: `adverse-${entry.id}`,
+    eventAt: entry.at,
+    enteredAt: entry.enteredAt ?? entry.at,
+    enteredBy: entry.actorId,
+    severity: entry.severity,
+    description: entry.symptom,
+    photos: [],
+    immediateActions: entry.actionTaken,
+    followUpRequired: entry.nextReviewAt ?? '',
+    resolutionStatus: entry.status === 'resolved' ? 'resolved' : entry.status === 'monitoring' ? 'follow-up' : 'open',
+    source: 'legacy medical change log',
+    resolvedAt: entry.resolvedAt,
+    resolvedBy: entry.resolvedBy
+  }));
+  const medicalAdverseEvents = Array.isArray(merged.mission.medicalAdverseEvents)
+    ? merged.mission.medicalAdverseEvents
+    : legacyAdverseEvents;
+  const medicalDeviceReadings = Array.isArray(merged.mission.medicalDeviceReadings)
+    ? merged.mission.medicalDeviceReadings
+    : currentState.mission.medicalDeviceReadings;
   const medicalDailyRecords = Array.isArray(merged.mission.medicalDailyRecords)
     ? merged.mission.medicalDailyRecords
     : currentState.mission.medicalDailyRecords;
@@ -479,12 +557,16 @@ const mergePersistedMissionState = (persistedState: unknown, currentState: Missi
   const checklistItems = mergeById(merged.mission.checklistItems, currentState.mission.checklistItems);
   const hasMedicalSymptomLog = Array.isArray(merged.mission.medicalSymptomLog);
   const hasMedicalDailyRecords = Array.isArray(merged.mission.medicalDailyRecords);
+  const hasMedicalAdverseEvents = Array.isArray(merged.mission.medicalAdverseEvents);
+  const hasMedicalDeviceReadings = Array.isArray(merged.mission.medicalDeviceReadings);
   const medicalChecklistLength = Array.isArray(merged.mission.medicalChecklist) ? merged.mission.medicalChecklist.length : 0;
 
   if (merged.mission.mode !== 'live') {
     if (
       hasMedicalSymptomLog &&
       hasMedicalDailyRecords &&
+      hasMedicalAdverseEvents &&
+      hasMedicalDeviceReadings &&
       checklistItems.length === merged.mission.checklistItems.length &&
       medicalChecklist.length === medicalChecklistLength
     ) {
@@ -498,7 +580,9 @@ const mergePersistedMissionState = (persistedState: unknown, currentState: Missi
         checklistItems,
         medicalChecklist,
         medicalDailyRecords,
-        medicalSymptomLog
+        medicalSymptomLog,
+        medicalAdverseEvents,
+        medicalDeviceReadings
       }
     };
   }
@@ -514,6 +598,8 @@ const mergePersistedMissionState = (persistedState: unknown, currentState: Missi
       medicalChecklist,
       medicalDailyRecords,
       medicalSymptomLog,
+      medicalAdverseEvents,
+      medicalDeviceReadings,
       riskPlan: {
         ...merged.mission.riskPlan,
         abortConditions: mergeUniqueStrings(merged.mission.riskPlan.abortConditions, currentState.mission.riskPlan.abortConditions),
@@ -1598,6 +1684,267 @@ const createMissionStore = (storageName: string, seedBuilder: () => Mission): Mi
                 event
               ),
               offlineQueue: queueIfOffline(state.online, state.offlineQueue, 'medical-daily-checklist-update', updatedRecord, at)
+            };
+          });
+        },
+
+        setMedicalRecoveryDay: (date, isRecoveryDay, actorId) => {
+          const at = new Date().toISOString();
+          const activeActorId = actorId ?? get().activeActorId;
+
+          set((state) => {
+            const existingRecord = getMedicalDailyRecord(state.mission.medicalDailyRecords ?? [], date, at, activeActorId);
+            const updatedRecord: MedicalDailyRecord = {
+              ...existingRecord,
+              dayType: isRecoveryDay ? 'recovery' : 'swim',
+              updatedAt: at,
+              updatedBy: activeActorId
+            };
+
+            return {
+              ...state,
+              mission: {
+                ...state.mission,
+                medicalDailyRecords: upsertMedicalDailyRecord(state.mission.medicalDailyRecords ?? [], updatedRecord)
+              },
+              offlineQueue: queueIfOffline(state.online, state.offlineQueue, 'medical-day-type-update', updatedRecord, at)
+            };
+          });
+        },
+
+        updateMedicalDailyChecklistField: (date, checklistType, fieldId, value, source = 'manual', actorId) => {
+          const at = new Date().toISOString();
+          const activeActorId = actorId ?? get().activeActorId;
+
+          set((state) => {
+            const existingRecord = getMedicalDailyRecord(state.mission.medicalDailyRecords ?? [], date, at, activeActorId);
+            const existingChecklist = existingRecord.checklists?.[checklistType] ?? {
+              checklistType,
+              status: 'not-started' as const,
+              fields: {}
+            };
+            const nextFields = {
+              ...existingChecklist.fields,
+              [fieldId]: {
+                value,
+                updatedAt: at,
+                updatedBy: activeActorId,
+                source
+              }
+            };
+            const hasAnyValue = Object.values(nextFields).some((field) => field.value.trim());
+            const updatedChecklist = {
+              ...existingChecklist,
+              status: existingChecklist.status === 'complete' ? 'complete' : hasAnyValue ? 'in-progress' as const : 'not-started' as const,
+              fields: nextFields
+            };
+            const updatedRecord: MedicalDailyRecord = {
+              ...existingRecord,
+              updatedAt: at,
+              updatedBy: activeActorId,
+              checklists: {
+                ...existingRecord.checklists,
+                [checklistType]: updatedChecklist
+              }
+            };
+            const sourceId = `${date}:${checklistType}:${fieldId}`;
+            const shouldCreateUrineEvent =
+              checklistType === 'medic-post-swim' &&
+              fieldId === 'urineDipstickResults' &&
+              isAbnormalUrineResult(value) &&
+              !(state.mission.medicalAdverseEvents ?? []).some((event) => event.source === sourceId);
+            const nextDailyRecords = upsertMedicalDailyRecord(state.mission.medicalDailyRecords ?? [], updatedRecord);
+
+            if (!shouldCreateUrineEvent) {
+              return {
+                ...state,
+                mission: {
+                  ...state.mission,
+                  medicalDailyRecords: nextDailyRecords
+                },
+                offlineQueue: queueIfOffline(state.online, state.offlineQueue, 'medical-daily-field-update', updatedRecord, at)
+              };
+            }
+
+            const adverseEvent: MedicalAdverseEvent = {
+              id: makeId('medical-adverse', at),
+              eventAt: at,
+              enteredAt: at,
+              enteredBy: activeActorId,
+              severity: 'urgent',
+              description: `Abnormal urine dipstick result recorded: ${value}`,
+              photos: [],
+              immediateActions: 'Review urine finding, repeat assessment as indicated, and notify medical lead.',
+              followUpRequired: 'Medical follow-up required for abnormal urine finding.',
+              resolutionStatus: 'open',
+              source: sourceId
+            };
+            const event: TimelineEvent = {
+              id: makeId('event-medical-adverse-urine', at),
+              type: 'condition',
+              at,
+              actorId: activeActorId,
+              summary: 'Adverse event logged: abnormal urine',
+              detail: adverseEvent.description,
+              severity: 'warning'
+            };
+
+            return {
+              ...state,
+              mission: appendTimeline(
+                {
+                  ...state.mission,
+                  medicalDailyRecords: nextDailyRecords,
+                  medicalAdverseEvents: [adverseEvent, ...(state.mission.medicalAdverseEvents ?? [])]
+                },
+                event
+              ),
+              offlineQueue: queueIfOffline(
+                state.online,
+                state.offlineQueue,
+                'medical-daily-field-update',
+                { updatedRecord, adverseEvent },
+                at
+              )
+            };
+          });
+        },
+
+        completeMedicalDailyChecklist: (date, checklistType, actorId) => {
+          const at = new Date().toISOString();
+          const activeActorId = actorId ?? get().activeActorId;
+
+          set((state) => {
+            const existingRecord = getMedicalDailyRecord(state.mission.medicalDailyRecords ?? [], date, at, activeActorId);
+            const existingChecklist = existingRecord.checklists?.[checklistType] ?? {
+              checklistType,
+              status: 'not-started' as const,
+              fields: {}
+            };
+            const updatedChecklist = {
+              ...existingChecklist,
+              status: 'complete' as const,
+              completedAt: at,
+              completedBy: activeActorId
+            };
+            const updatedRecord: MedicalDailyRecord = {
+              ...existingRecord,
+              updatedAt: at,
+              updatedBy: activeActorId,
+              checklists: {
+                ...existingRecord.checklists,
+                [checklistType]: updatedChecklist
+              }
+            };
+            const event: TimelineEvent = {
+              id: makeId('event-medical-daily-complete', at),
+              type: 'check-in',
+              at,
+              actorId: activeActorId,
+              summary: `Medical checklist complete: ${checklistType}`,
+              detail: `${date} checklist saved.`,
+              severity: 'info'
+            };
+
+            return {
+              ...state,
+              mission: appendTimeline(
+                {
+                  ...state.mission,
+                  medicalDailyRecords: upsertMedicalDailyRecord(state.mission.medicalDailyRecords ?? [], updatedRecord)
+                },
+                event
+              ),
+              offlineQueue: queueIfOffline(state.online, state.offlineQueue, 'medical-daily-checklist-complete', updatedRecord, at)
+            };
+          });
+        },
+
+        addMedicalAdverseEvent: (input) => {
+          const enteredAt = input.enteredAt ?? new Date().toISOString();
+          const activeActorId = input.enteredBy ?? get().activeActorId;
+          const { enteredAt: _ignoredEnteredAt, enteredBy: _ignoredEnteredBy, ...rest } = input;
+          const entry: MedicalAdverseEvent = {
+            id: makeId('medical-adverse', enteredAt),
+            enteredAt,
+            enteredBy: activeActorId,
+            ...rest
+          };
+          const severity = entry.severity === 'emergency' ? 'critical' : entry.severity === 'watch' ? 'info' : 'warning';
+          const event: TimelineEvent = {
+            id: makeId('event-medical-adverse', enteredAt),
+            type: 'condition',
+            at: enteredAt,
+            actorId: activeActorId,
+            summary: `Adverse event logged: ${entry.description.slice(0, 80)}`,
+            detail: entry.immediateActions || entry.followUpRequired || 'Adverse medical event recorded.',
+            severity
+          };
+          const alert: Alert | undefined =
+            entry.severity === 'urgent' || entry.severity === 'emergency'
+              ? {
+                  id: makeId('alert-medical-adverse', enteredAt),
+                  kind: 'medical',
+                  title: entry.severity === 'emergency' ? 'Emergency adverse event' : 'Urgent adverse event',
+                  detail: entry.description,
+                  createdAt: enteredAt,
+                  status: 'active',
+                  severity: entry.severity === 'emergency' ? 'critical' : 'warning'
+                }
+              : undefined;
+
+          set((state) => ({
+            ...state,
+            mission: appendTimeline(
+              {
+                ...state.mission,
+                medicalAdverseEvents: [entry, ...(state.mission.medicalAdverseEvents ?? [])],
+                alerts: alert ? [alert, ...state.mission.alerts] : state.mission.alerts
+              },
+              event
+            ),
+            offlineQueue: queueIfOffline(state.online, state.offlineQueue, 'medical-adverse-event', entry, enteredAt)
+          }));
+        },
+
+        resolveMedicalAdverseEvent: (entryId, actorId) => {
+          const at = new Date().toISOString();
+          const activeActorId = actorId ?? get().activeActorId;
+
+          set((state) => {
+            const entry = (state.mission.medicalAdverseEvents ?? []).find((candidate) => candidate.id === entryId);
+            if (!entry || entry.resolutionStatus === 'resolved') {
+              return state;
+            }
+
+            const resolvedEntry: MedicalAdverseEvent = {
+              ...entry,
+              resolutionStatus: 'resolved',
+              resolvedAt: at,
+              resolvedBy: activeActorId
+            };
+            const event: TimelineEvent = {
+              id: makeId('event-medical-adverse-resolved', at),
+              type: 'condition',
+              at,
+              actorId: activeActorId,
+              summary: 'Adverse event resolved',
+              detail: entry.description,
+              severity: 'info'
+            };
+
+            return {
+              ...state,
+              mission: appendTimeline(
+                {
+                  ...state.mission,
+                  medicalAdverseEvents: (state.mission.medicalAdverseEvents ?? []).map((candidate) =>
+                    candidate.id === entryId ? resolvedEntry : candidate
+                  )
+                },
+                event
+              ),
+              offlineQueue: queueIfOffline(state.online, state.offlineQueue, 'medical-adverse-event-resolved', resolvedEntry, at)
             };
           });
         },

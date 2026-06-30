@@ -20,7 +20,7 @@ function renderProtectedRoute(path: string) {
 describe('site access gate', () => {
   it.each([
     ['observation log', '/', /WOWSA Observation Log/i],
-    ['medical', '/medical', /Independent medical checklists/i],
+    ['medical', '/medical', /Today's required checklists/i],
     ['legacy WOWSA redirect', '/wowsa', /WOWSA Observation Log/i],
     ['template project', '/template', /Reusable Observer Template/i]
   ])('protects direct access to %s', async (_label, path, hiddenContent) => {
@@ -38,7 +38,7 @@ describe('site access gate', () => {
     await user.type(screen.getByLabelText(/Enter access code/i), '1234');
     await user.click(screen.getByRole('button', { name: 'Unlock' }));
 
-    expect(await screen.findByText('Recovery-Day Checklist')).toBeInTheDocument();
+    expect(await screen.findByText("Today's required checklists")).toBeInTheDocument();
     expect(screen.queryByLabelText(/Enter access code/i)).not.toBeInTheDocument();
   });
 });

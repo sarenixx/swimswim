@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -362,54 +362,96 @@ describe("observer-first swim flows", () => {
     downloadClick.mockRestore();
   });
 
-  it("keeps medical workflows independent with four checklists and one recovery-day checklist", async () => {
+  it("keeps medical monitoring focused on today's checklists and adverse events", async () => {
     const user = userEvent.setup();
     renderRoute("/medical");
 
     expect(
-      (await screen.findAllByRole("heading", { name: "Medical" })).length,
-    ).toBeGreaterThan(0);
-    expect(screen.getByText("Pre-Swim Checklist")).toBeInTheDocument();
-    expect(screen.getByText("In-Swim Watch Checklist")).toBeInTheDocument();
-    expect(screen.getByText("Post-Swim Checklist")).toBeInTheDocument();
-    expect(
-      screen.getByText("Medication / Treatment Checklist"),
+      await screen.findByRole("heading", { name: "Medical Monitoring" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Recovery-Day Checklist")).toBeInTheDocument();
-    expect(screen.queryByText(/Start Session/i)).not.toBeInTheDocument();
+    expect(screen.getByText("Today's required checklists")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Athlete Pre-Swim/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Medic Pre-Swim/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Athlete Post-Swim/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Medic Post-Swim/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Log Adverse Event/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Past Logs/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Trends/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Safety & Emergency/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Start Session/i })).not.toBeInTheDocument();
 
-    const preSwim = screen.getByText("Pre-Swim Checklist").closest("section");
-    expect(preSwim).not.toBeNull();
-    await user.type(
-      within(preSwim!).getByLabelText(
-        /Daily note for Pre-swim vitals recorded/i,
-      ),
-      "Baseline complete.",
-    );
-    await user.click(
-      within(preSwim!).getByRole("checkbox", {
-        name: /Complete Pre-swim vitals recorded/i,
-      }),
-    );
+    await user.click(screen.getByRole("button", { name: /Athlete Pre-Swim/i }));
+    await user.type(screen.getByLabelText(/Sleep duration/i), "7.5");
+    await user.type(screen.getByLabelText(/General comments/i), "Baseline complete.");
+    await user.click(screen.getByRole("button", { name: /Mark Complete/i }));
 
     const dailyRecord =
       useMissionStore.getState().mission.medicalDailyRecords[0];
-    const savedItem = dailyRecord.items.find(
-      (item) => item.itemId === "med-pre-swim-vitals",
+    expect(
+      dailyRecord.checklists?.["athlete-pre-swim"]?.fields.generalComments
+        .value,
+    ).toBe("Baseline complete.");
+    expect(dailyRecord.checklists?.["athlete-pre-swim"]?.status).toBe(
+      "complete",
     );
-    expect(savedItem?.status).toBe("done");
-    expect(savedItem?.note).toBe("Baseline complete.");
 
-    await user.type(
-      screen.getByLabelText(/Symptom \/ change/i),
-      "Cold hands after exit",
+    await user.click(screen.getByRole("button", { name: "Today" }));
+    await user.click(screen.getByRole("button", { name: /Medic Post-Swim/i }));
+    await user.selectOptions(
+      screen.getByLabelText(/Urine dipstick results/i),
+      "Trace blood",
     );
+    expect(
+      useMissionStore.getState().mission.medicalAdverseEvents[0].description,
+    ).toMatch(/Abnormal urine dipstick/i);
+
+    await user.click(screen.getByRole("button", { name: "Today" }));
+    await user.click(screen.getByLabelText(/Recovery day/i));
+    expect(
+      screen.getByRole("button", { name: /Athlete Recovery/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Medic Recovery/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Athlete Pre-Swim/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("logs adverse events from the permanent medical event form", async () => {
+    const user = userEvent.setup();
+    renderRoute("/medical");
+
     await user.click(
-      screen.getByRole("button", { name: /Log Medical Change/i }),
+      await screen.findByRole("button", { name: /Log Adverse Event/i }),
     );
+    await user.type(
+      screen.getByLabelText(/Description/i),
+      "Jellyfish sting on left arm",
+    );
+    await user.type(
+      screen.getByLabelText(/Immediate actions taken/i),
+      "Rinsed and monitored.",
+    );
+    const adverseButtons = screen.getAllByRole("button", {
+      name: /Log Adverse Event/i,
+    });
+    await user.click(adverseButtons[adverseButtons.length - 1]);
 
     expect(
-      useMissionStore.getState().mission.medicalSymptomLog[0].symptom,
-    ).toBe("Cold hands after exit");
+      useMissionStore.getState().mission.medicalAdverseEvents[0].description,
+    ).toBe("Jellyfish sting on left arm");
   });
 });

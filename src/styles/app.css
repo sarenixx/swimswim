@@ -942,6 +942,209 @@ a {
   gap: var(--space-3);
 }
 
+.medical-dashboard {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.medical-dashboard-header {
+  align-items: end;
+}
+
+.medical-day-controls,
+.medical-secondary-nav,
+.medical-filter-row,
+.medical-export-actions,
+.medical-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: end;
+}
+
+.field-label.compact {
+  min-width: 160px;
+}
+
+.medical-toggle {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+  min-height: 42px;
+  padding: 0 var(--space-3);
+  color: var(--color-ink);
+  background: var(--color-white);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.medical-toggle input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+}
+
+.medical-primary-tiles {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.medical-task-tile {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: center;
+  min-height: 92px;
+  padding: var(--space-3);
+  color: var(--color-ink);
+  text-align: left;
+  background: #f9fbfd;
+  border: 1px solid var(--color-line);
+  border-left: 5px solid #bfd3e4;
+  border-radius: var(--radius-card);
+  cursor: pointer;
+}
+
+.medical-task-tile:hover,
+.medical-task-tile:focus-visible {
+  border-color: var(--color-ocean);
+  box-shadow: 0 0 0 3px rgba(43, 143, 204, 0.14);
+  outline: none;
+}
+
+.medical-task-tile.done {
+  border-left-color: #41a675;
+}
+
+.medical-task-tile.watch {
+  border-left-color: var(--color-caution);
+}
+
+.medical-task-tile.adverse {
+  border-left-color: var(--color-alert);
+}
+
+.medical-task-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  color: var(--color-ocean-deep);
+  background: var(--color-white);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+}
+
+.medical-task-tile.adverse .medical-task-icon {
+  color: var(--color-alert-dark);
+}
+
+.medical-task-tile strong,
+.medical-task-tile small {
+  display: block;
+  min-width: 0;
+}
+
+.medical-task-tile strong {
+  font-size: 0.96rem;
+  line-height: 1.25;
+}
+
+.medical-task-tile small {
+  margin-top: 4px;
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.medical-checklist-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.medical-scale-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 38px;
+  gap: var(--space-2);
+  align-items: center;
+  min-height: 42px;
+}
+
+.medical-scale-row input {
+  width: 100%;
+}
+
+.medical-scale-row output {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  color: var(--color-night);
+  background: #f4f8fb;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  font-weight: 900;
+}
+
+.medical-event-list {
+  margin-top: var(--space-4);
+}
+
+.medical-chart-wrap {
+  width: 100%;
+  overflow-x: auto;
+  padding: var(--space-3);
+  background: #f9fbfd;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+}
+
+.medical-chart {
+  display: block;
+  width: 100%;
+  min-width: 520px;
+  height: 260px;
+  color: var(--color-ocean-deep);
+}
+
+.medical-chart circle {
+  fill: var(--color-white);
+  stroke: currentColor;
+  stroke-width: 3;
+}
+
+.medical-highlight-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.medical-highlight {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 var(--space-3);
+  color: var(--color-ink);
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: var(--radius-control);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.medical-safety-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
 .medical-submit {
   justify-self: start;
 }
@@ -1874,6 +2077,10 @@ input[type="range"] {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .medical-primary-tiles {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 860px) {
@@ -1926,11 +2133,14 @@ input[type="range"] {
   .medical-record-grid,
   .medical-log-form,
   .medical-checklist-grid,
+  .medical-checklist-form,
   .medical-check-controls,
   .daily-checklist-toolbar,
   .setup-field-grid,
   .edit-form-grid,
   .edit-row-card,
+  .medical-primary-tiles,
+  .medical-safety-grid,
   .more-planning-grid {
     grid-template-columns: 1fr;
   }

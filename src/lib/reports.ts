@@ -1,7 +1,17 @@
 import { format } from 'date-fns';
-import type { Mission, WowsaPhotoEntry } from '../state/types';
+import type { MedicalDailyChecklistType, Mission, WowsaPhotoEntry } from '../state/types';
 
 const blank = (value?: string | number) => (value === undefined || value === '' ? '-' : String(value));
+export const medicalReportRecipients = ['swimcalifornia2026@gmail.com', 'kmsusskind@gmail.com'];
+
+const medicalChecklistLabels: Record<MedicalDailyChecklistType, string> = {
+  'athlete-pre-swim': 'Athlete Pre-Swim',
+  'medic-pre-swim': 'Medic Pre-Swim',
+  'athlete-post-swim': 'Athlete Post-Swim',
+  'medic-post-swim': 'Medic Post-Swim',
+  'athlete-recovery': 'Athlete Recovery',
+  'medic-recovery': 'Medic Recovery'
+};
 
 function sessionBlock(mission: Mission) {
   const session = mission.session;
@@ -125,17 +135,115 @@ function medicalDailyChecklistBlock(mission: Mission) {
   const checklistById = new Map((mission.medicalChecklist ?? []).map((item) => [item.id, item]));
 
   return records
-    .map(
-      (record) => `${format(new Date(`${record.date}T00:00:00`), 'PP')} - updated ${format(new Date(record.updatedAt), 'p')}
-${record.items
-  .map((item) => {
-    const checklistItem = checklistById.get(item.itemId);
-    return `  ${item.status.toUpperCase()} - ${checklistItem?.title ?? item.itemId}
+    .map((record) => {
+      const typedBlock = Object.values(record.checklists ?? {})
+        .map(
+          (checklist) => `  ${medicalChecklistLabels[checklist.checklistType]} - ${checklist.status}
+${Object.entries(checklist.fields)
+  .map(([fieldId, field]) => `    ${fieldId}: ${blank(field.value)}${field.source && field.source !== 'manual' ? ` (${field.source})` : ''}`)
+  .join('\n')}`
+        )
+        .join('\n');
+      const legacyBlock = record.items
+        .map((item) => {
+          const checklistItem = checklistById.get(item.itemId);
+          return `  ${item.status.toUpperCase()} - ${checklistItem?.title ?? item.itemId}
     Note: ${blank(item.note)}`;
-  })
+        })
+        .join('\n');
+
+      return `${format(new Date(`${record.date}T00:00:00`), 'PP')} - ${record.dayType ?? 'swim'} day - updated ${format(new Date(record.updatedAt), 'p')}
+${[typedBlock, legacyBlock].filter(Boolean).join('\n')}`;
+    })
+    .join('\n\n');
+}
+
+function medicalAdverseEventBlock(mission: Mission) {
+  const entries = mission.medicalAdverseEvents ?? [];
+  if (!entries.length) {
+    return 'No adverse events logged.';
+  }
+
+  return entries
+    .map(
+      (entry) => `${format(new Date(entry.eventAt), 'PPp')} - ${entry.description}
+  Entered: ${format(new Date(entry.enteredAt), 'PPp')}
+  Severity: ${entry.severity}
+  Status: ${entry.resolutionStatus}
+  Immediate actions: ${blank(entry.immediateActions)}
+  Follow-up: ${blank(entry.followUpRequired)}
+  Photos: ${entry.photos.length}`
+    )
+    .join('\n\n');
+}
+
+function medicalDeviceBlock(mission: Mission) {
+  const readings = mission.medicalDeviceReadings ?? [];
+  if (!readings.length) {
+    return 'No Oura or Garmin imports available.';
+  }
+
+  return readings
+    .map(
+      (reading) => `${reading.source.toUpperCase()} - ${format(new Date(reading.capturedAt), 'PPp')}
+${Object.entries(reading.metrics)
+  .map(([key, value]) => `  ${key}: ${blank(value)}`)
   .join('\n')}`
     )
     .join('\n\n');
+}
+
+export function buildDailyMedicalSummary(mission: Mission, date: string) {
+  const dailyRecord = (mission.medicalDailyRecords ?? []).find((record) => record.date === date);
+  const adverseEvents = (mission.medicalAdverseEvents ?? []).filter((entry) => entry.eventAt.slice(0, 10) === date);
+  const deviceReadings = (mission.medicalDeviceReadings ?? []).filter((reading) => reading.capturedAt.slice(0, 10) === date);
+
+  return `${mission.name} - Daily Medical Summary
+Date: ${format(new Date(`${date}T00:00:00`), 'PP')}
+Generated: ${format(new Date(), 'PPpp')}
+Day Type: ${dailyRecord?.dayType ?? 'swim'}
+
+TODAY'S CHECKLISTS
+${
+  dailyRecord?.checklists
+    ? Object.values(dailyRecord.checklists)
+        .map(
+          (checklist) => `${medicalChecklistLabels[checklist.checklistType]} - ${checklist.status}
+${Object.entries(checklist.fields)
+  .map(([fieldId, field]) => `  ${fieldId}: ${blank(field.value)}${field.source && field.source !== 'manual' ? ` (${field.source})` : ''}`)
+  .join('\n')}`
+        )
+        .join('\n\n')
+    : 'No checklist entries saved for this date.'
+}
+
+ADVERSE EVENTS
+${
+  adverseEvents.length
+    ? adverseEvents
+        .map(
+          (entry) => `${format(new Date(entry.eventAt), 'p')} - ${entry.severity} - ${entry.description}
+  Actions: ${blank(entry.immediateActions)}
+  Follow-up: ${blank(entry.followUpRequired)}
+  Status: ${entry.resolutionStatus}`
+        )
+        .join('\n\n')
+    : 'No adverse events logged for this date.'
+}
+
+DEVICE IMPORTS
+${
+  deviceReadings.length
+    ? deviceReadings
+        .map(
+          (reading) => `${reading.source.toUpperCase()} - ${format(new Date(reading.capturedAt), 'p')}
+${Object.entries(reading.metrics)
+  .map(([key, value]) => `  ${key}: ${blank(value)}`)
+  .join('\n')}`
+        )
+        .join('\n\n')
+    : 'No Oura or Garmin imports available for this date.'
+}`;
 }
 
 function medicalSymptomBlock(mission: Mission) {
@@ -202,8 +310,14 @@ ${medicalChecklistBlock(mission)}
 DAILY MEDICAL CHECKLIST RECORDS
 ${medicalDailyChecklistBlock(mission)}
 
+ADVERSE EVENT LOG
+${medicalAdverseEventBlock(mission)}
+
 SYMPTOM / CHANGE LOG
-${medicalSymptomBlock(mission)}`;
+${medicalSymptomBlock(mission)}
+
+DEVICE IMPORTS
+${medicalDeviceBlock(mission)}`;
 }
 
 export function buildWildlifeReport(mission: Mission) {

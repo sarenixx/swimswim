@@ -996,6 +996,8 @@ export function buildLiveSeedMission(now = new Date()): Mission {
     ],
     medicalDailyRecords: [],
     medicalSymptomLog: [],
+    medicalAdverseEvents: [],
+    medicalDeviceReadings: [],
     wildlifeSightings: [],
     wowsaPhotos: [],
     expeditionCheckpoints: [
@@ -1840,6 +1842,8 @@ export function buildTemplateSeedMission(now = new Date()): Mission {
     ],
     medicalDailyRecords: [],
     medicalSymptomLog: [],
+    medicalAdverseEvents: [],
+    medicalDeviceReadings: [],
     wildlifeSightings: [],
     wowsaPhotos: [],
     expeditionCheckpoints: [

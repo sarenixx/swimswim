@@ -71,6 +71,18 @@ export type MedicalChecklistStatus = 'pending' | 'done' | 'watch' | 'escalated';
 export type MedicalSymptomSeverity = 'watch' | 'caution' | 'urgent' | 'emergency';
 export type MedicalSymptomTrend = 'new' | 'worse' | 'same' | 'improving' | 'resolved';
 export type MedicalSymptomStatus = 'open' | 'monitoring' | 'resolved';
+export type MedicalDayType = 'swim' | 'recovery';
+export type MedicalDailyChecklistType =
+  | 'athlete-pre-swim'
+  | 'medic-pre-swim'
+  | 'athlete-post-swim'
+  | 'medic-post-swim'
+  | 'athlete-recovery'
+  | 'medic-recovery';
+export type MedicalDailyChecklistStatus = 'not-started' | 'in-progress' | 'complete';
+export type MedicalDeviceSource = 'manual' | 'oura' | 'garmin';
+export type MedicalAdverseEventSeverity = 'watch' | 'caution' | 'urgent' | 'emergency';
+export type MedicalAdverseEventResolutionStatus = 'open' | 'follow-up' | 'resolved';
 
 export type QuickLogKind =
   | 'feeding-completed'
@@ -301,17 +313,82 @@ export interface MedicalDailyChecklistItemRecord {
   completedBy?: string;
 }
 
+export interface MedicalChecklistFieldRecord {
+  value: string;
+  updatedAt: string;
+  updatedBy: string;
+  source?: MedicalDeviceSource;
+}
+
+export interface MedicalDailyChecklistRecord {
+  checklistType: MedicalDailyChecklistType;
+  status: MedicalDailyChecklistStatus;
+  fields: Record<string, MedicalChecklistFieldRecord>;
+  completedAt?: string;
+  completedBy?: string;
+}
+
 export interface MedicalDailyRecord {
   id: string;
   date: string;
+  dayType?: MedicalDayType;
   updatedAt: string;
   updatedBy: string;
   items: MedicalDailyChecklistItemRecord[];
+  checklists?: Partial<Record<MedicalDailyChecklistType, MedicalDailyChecklistRecord>>;
+}
+
+export interface MedicalAdverseEventPhoto {
+  id: string;
+  name: string;
+  dataUrl: string;
+  capturedAt: string;
+}
+
+export interface MedicalAdverseEvent {
+  id: string;
+  eventAt: string;
+  enteredAt: string;
+  enteredBy: string;
+  severity: MedicalAdverseEventSeverity;
+  description: string;
+  photos: MedicalAdverseEventPhoto[];
+  immediateActions: string;
+  followUpRequired: string;
+  resolutionStatus: MedicalAdverseEventResolutionStatus;
+  source?: string;
+  resolvedAt?: string;
+  resolvedBy?: string;
+}
+
+export interface MedicalDeviceMetrics {
+  restingHeartRateBpm?: string;
+  hrvMs?: string;
+  sleepHours?: string;
+  sleepQuality?: string;
+  bodyTemperatureTrendF?: string;
+  readinessScore?: string;
+  recoveryScore?: string;
+  swimDistance?: string;
+  swimDuration?: string;
+  heartRateBpm?: string;
+  gps?: string;
+  calories?: string;
+  trainingLoad?: string;
+}
+
+export interface MedicalDeviceReading {
+  id: string;
+  source: Extract<MedicalDeviceSource, 'oura' | 'garmin'>;
+  capturedAt: string;
+  importedAt: string;
+  metrics: MedicalDeviceMetrics;
 }
 
 export interface MedicalSymptomEntry {
   id: string;
   at: string;
+  enteredAt?: string;
   actorId: string;
   protocolArea: MedicalProtocolArea;
   symptom: string;
@@ -413,6 +490,8 @@ export interface Mission {
   medicalChecklist: MedicalChecklistItem[];
   medicalDailyRecords: MedicalDailyRecord[];
   medicalSymptomLog: MedicalSymptomEntry[];
+  medicalAdverseEvents: MedicalAdverseEvent[];
+  medicalDeviceReadings: MedicalDeviceReading[];
   wildlifeSightings: WildlifeSighting[];
   wowsaPhotos: WowsaPhotoEntry[];
   expeditionCheckpoints: ExpeditionCheckpoint[];

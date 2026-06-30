@@ -999,7 +999,6 @@ function SafetyEmergencyView() {
       <div className="panel-header">
         <div>
           <h3 className="panel-title">Trends</h3>
-          <p className="panel-subtitle">Checklist, Oura, Garmin, and adverse event trends</p>
         </div>
         <button className="button ghost" type="button" onClick={() => setActiveView('dashboard')}>
           Today

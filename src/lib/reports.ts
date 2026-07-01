@@ -1,5 +1,5 @@
 import { format } from 'date-fns';
-import type { MedicalDailyChecklistType, Mission, WowsaPhotoEntry } from '../state/types';
+import type { MedicalDailyChecklistRecord, MedicalDailyChecklistType, Mission, WowsaPhotoEntry } from '../state/types';
 
 const blank = (value?: string | number) => (value === undefined || value === '' ? '-' : String(value));
 export const medicalReportRecipients = ['swimcalifornia2026@gmail.com', 'kmsusskind@gmail.com'];
@@ -12,6 +12,30 @@ const medicalChecklistLabels: Record<MedicalDailyChecklistType, string> = {
   'athlete-recovery': 'Athlete Recovery',
   'medic-recovery': 'Medic Recovery'
 };
+
+function crewLabel(mission: Mission, crewId?: string) {
+  if (!crewId) {
+    return '-';
+  }
+
+  return mission.crew.find((member) => member.id === crewId)?.name ?? crewId;
+}
+
+function medicalDailyChecklistReportBlock(
+  mission: Mission,
+  checklist: MedicalDailyChecklistRecord,
+  headingIndent = '',
+  detailIndent = '  '
+) {
+  const fields = Object.entries(checklist.fields)
+    .map(([fieldId, field]) => `${detailIndent}${fieldId}: ${blank(field.value)}${field.source && field.source !== 'manual' ? ` (${field.source})` : ''}`)
+    .join('\n');
+
+  return `${headingIndent}${medicalChecklistLabels[checklist.checklistType]} - ${checklist.status}
+${detailIndent}Completed: ${checklist.completedAt ? format(new Date(checklist.completedAt), 'PPp') : '-'}
+${detailIndent}Completed by: ${crewLabel(mission, checklist.completedBy)}
+${fields || `${detailIndent}No fields saved.`}`;
+}
 
 function sessionBlock(mission: Mission) {
   const session = mission.session;
@@ -137,12 +161,7 @@ function medicalDailyChecklistBlock(mission: Mission) {
   return records
     .map((record) => {
       const typedBlock = Object.values(record.checklists ?? {})
-        .map(
-          (checklist) => `  ${medicalChecklistLabels[checklist.checklistType]} - ${checklist.status}
-${Object.entries(checklist.fields)
-  .map(([fieldId, field]) => `    ${fieldId}: ${blank(field.value)}${field.source && field.source !== 'manual' ? ` (${field.source})` : ''}`)
-  .join('\n')}`
-        )
+        .map((checklist) => medicalDailyChecklistReportBlock(mission, checklist, '  ', '    '))
         .join('\n');
       const legacyBlock = record.items
         .map((item) => {
@@ -207,12 +226,7 @@ TODAY'S CHECKLISTS
 ${
   dailyRecord?.checklists
     ? Object.values(dailyRecord.checklists)
-        .map(
-          (checklist) => `${medicalChecklistLabels[checklist.checklistType]} - ${checklist.status}
-${Object.entries(checklist.fields)
-  .map(([fieldId, field]) => `  ${fieldId}: ${blank(field.value)}${field.source && field.source !== 'manual' ? ` (${field.source})` : ''}`)
-  .join('\n')}`
-        )
+        .map((checklist) => medicalDailyChecklistReportBlock(mission, checklist))
         .join('\n\n')
     : 'No checklist entries saved for this date.'
 }

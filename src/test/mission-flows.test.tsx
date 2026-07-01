@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { routes } from "../app/router";
+import { buildDailyMedicalSummary } from "../lib/reports";
 import { getEvidenceImage } from "../lib/storage/evidenceStore";
 import {
   useMissionStore,
@@ -417,6 +418,19 @@ describe("observer-first swim flows", () => {
     expect(dailyRecord.checklists?.["athlete-pre-swim"]?.status).toBe(
       "complete",
     );
+    const dailySummary = buildDailyMedicalSummary(
+      useMissionStore.getState().mission,
+      dailyRecord.date,
+    );
+    const completedBy =
+      useMissionStore
+        .getState()
+        .mission.crew.find(
+          (member) => member.id === useMissionStore.getState().activeActorId,
+        )?.name ?? useMissionStore.getState().activeActorId;
+    expect(dailySummary).toContain("Athlete Pre-Swim - complete");
+    expect(dailySummary).toMatch(/Completed: .+/);
+    expect(dailySummary).toContain(`Completed by: ${completedBy}`);
 
     await user.click(screen.getByRole("button", { name: /Past Logs/i }));
     expect(

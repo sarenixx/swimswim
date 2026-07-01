@@ -883,8 +883,8 @@ function SafetyEmergencyView() {
           Trends
         </button>
         <button className="button" type="button" onClick={() => setActiveView('data')}>
-          <Database aria-hidden="true" />
-          Data & Export
+          <Mail aria-hidden="true" />
+          Email / Export
         </button>
         <button className="button" type="button" onClick={() => setActiveView('safety')}>
           <ShieldAlert aria-hidden="true" />
@@ -1181,8 +1181,8 @@ function SafetyEmergencyView() {
     <section className="panel span-12">
       <div className="panel-header">
         <div>
-          <h3 className="panel-title">Data & Export</h3>
-          <p className="panel-subtitle">Shared record status, downloads, and email copies</p>
+          <h3 className="panel-title">Email / Export</h3>
+          <p className="panel-subtitle">Open email drafts, download copies, and check shared save status</p>
         </div>
         <button className="button ghost" type="button" onClick={() => setActiveView('dashboard')}>
           Today
@@ -1190,6 +1190,47 @@ function SafetyEmergencyView() {
       </div>
 
       <div className="medical-data-grid">
+        <article className="daily-checklist-row span-fields">
+          <div className="row-title">Email Medical Reports</div>
+          <div className="medical-recipient-list">
+            {medicalReportRecipients.map((recipient) => (
+              <span className="medical-recipient" key={recipient}>
+                {recipient}
+              </span>
+            ))}
+          </div>
+          <div className="row-actions medical-export-actions">
+            <a className="button primary" href={mailtoHref(medicalEmail, dailyReportSubject, dailyReportBody)}>
+              <Mail aria-hidden="true" />
+              Open Daily Summary Email
+            </a>
+            <a className="button" href={mailtoHref(medicalEmail, medicalReportSubject, medicalReportBody)}>
+              <Mail aria-hidden="true" />
+              Open Full Medical Record Email
+            </a>
+          </div>
+          <span className="alert-detail">
+            Email opens your mail app with a copy of the report. Review recipients and content before sending.
+          </span>
+        </article>
+
+        <article className="daily-checklist-row">
+          <div className="row-title">Download Medical Copies</div>
+          <div className="row-actions medical-export-actions">
+            <button className="button primary" type="button" onClick={downloadDailySummary}>
+              <FileDown aria-hidden="true" />
+              Download Daily Summary
+            </button>
+            <button className="button" type="button" onClick={downloadMedicalRecord}>
+              <FileDown aria-hidden="true" />
+              Download Full Medical Record
+            </button>
+          </div>
+          <span className="alert-detail">
+            Downloads stay on this device and are not the system of record.
+          </span>
+        </article>
+
         <article className="daily-checklist-row">
           <div className="split-row">
             <div>
@@ -1206,45 +1247,6 @@ function SafetyEmergencyView() {
             {backupStatus.state === 'saving' ? 'Saving Shared Snapshot' : 'Save Shared Snapshot'}
           </button>
           <span className={`row-meta backup-status ${backupStatus.state}`}>{backupStatus.detail}</span>
-        </article>
-
-        <article className="daily-checklist-row">
-          <div className="row-title">Email Recipients</div>
-          <div className="medical-recipient-list">
-            {medicalReportRecipients.map((recipient) => (
-              <span className="medical-recipient" key={recipient}>
-                {recipient}
-              </span>
-            ))}
-          </div>
-          <span className="alert-detail">
-            Email opens your mail app with a copy of the report. Review recipients and content before sending.
-          </span>
-        </article>
-
-        <article className="daily-checklist-row span-fields">
-          <div className="row-title">Medical Downloads & Email Copies</div>
-          <div className="row-actions medical-export-actions">
-            <button className="button primary" type="button" onClick={downloadDailySummary}>
-              <FileDown aria-hidden="true" />
-              Download Daily Summary
-            </button>
-            <button className="button" type="button" onClick={downloadMedicalRecord}>
-              <FileDown aria-hidden="true" />
-              Download Full Medical Record
-            </button>
-            <a className="button" href={mailtoHref(medicalEmail, dailyReportSubject, dailyReportBody)}>
-              <Mail aria-hidden="true" />
-              Email Daily Summary
-            </a>
-            <a className="button" href={mailtoHref(medicalEmail, medicalReportSubject, medicalReportBody)}>
-              <Mail aria-hidden="true" />
-              Email Full Medical Record
-            </a>
-          </div>
-          <span className="alert-detail">
-            Downloads stay on this device. Email sends a separate copy and is not the system of record.
-          </span>
         </article>
       </div>
     </section>
